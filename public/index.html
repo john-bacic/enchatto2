@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Chat Room</title>
+    <base href="/">
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+        :root {
+            --room-info-height: 0px;
+        }
+    </style>
+</head>
+<body>
+    <div id="start-host" class="welcome-screen" style="display: none;">
+        <button onclick="startHosting()" class="host-button">Create New Room</button>
+    </div>
+    
+    <div id="room-info" style="display: none;" class="room-info">
+        <button class="accordion-button active" onclick="toggleAccordion(this)">
+            Share Room
+        </button>
+        <div class="accordion-content show">
+            <div id="qr-code">
+                <div class="loading">Loading QR code...</div>
+            </div>
+            <div class="info">
+                <div>Room Number: <strong id="room-id">Loading...</strong></div>
+                <div class="url-container">
+                    Join URL: <strong id="join-url">Loading...</strong>
+                    <button onclick="copyUrl()" class="copy-button" id="copy-button">Copy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="chat-container" style="display: none;" class="chat-container">
+        <div id="welcome-message"></div>
+        <div id="messages"></div>
+        <div class="message-input-container">
+            <div class="message-input">
+                <input type="text" id="message-text" placeholder="Type your message..." autocomplete="off">
+                <button onclick="sendMessage()" class="send-button">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let username = null;
+        let userColor = null;
+        const urlParams = new URLSearchParams(window.location.search);
+        const isHost = urlParams.get('host') === 'true';
+        const roomId = window.location.pathname.split('/').pop();
+        
+        // Show/hide elements based on URL
+        if (window.location.pathname === '/' || window.location.pathname === '') {
+            document.getElementById('start-host').style.display = 'flex';
+            document.getElementById('room-info').style.display = 'none';
+            document.getElementById('chat-container').style.display = 'none';
+        } else {
+            document.getElementById('start-host').style.display = 'none';
+            document.getElementById('room-info').style.display = isHost ? 'block' : 'none';
+            document.getElementById('chat-container').style.display = 'flex';
+            initializeRoom();
+        }
+        
+        function toggleAccordion(button) {
+            button.classList.toggle('active');
+            const content = button.nextElementSibling;
+            content.classList.toggle('show');
+            
+            // Update room info height and chat container position
+            const roomInfo = document.querySelector('.room-info');
+            if (roomInfo) {
+                document.documentElement.style.setProperty('--room-info-height', roomInfo.offsetHeight + 'px');
+            }
+        }
+        
+        // Update room info height whenever content changes
+        const observer = new ResizeObserver(entries => {
+            for (let entry of entries) {
+                if (entry.target.classList.contains('room-info')) {
+                    document.documentElement.style.setProperty('--room-info-height', entry.target.offsetHeight + 'px');
+                }
+            }
+        });
+        
+        // Start observing room-info
+        const roomInfo = document.querySelector('.room-info');
+        if (roomInfo) {
+            observer.observe(roomInfo);
+        }
+        
+        // Prevent bounce scrolling on iOS
+        document.addEventListener('touchmove', function(e) {
+            if (e.target.closest('#messages')) return;
+            e.preventDefault();
+        }, { passive: false });
+        
+        function startHosting() {
+            window.location.href = '/room';
+        }
+        
+        async function initializeRoom() {
+            try {
+                const response = await fetch(`/api/room/${roomId}?host=${isHost}`);
+                if (!response.ok) {
+                    const error = await response.json();
+                    if (error.error === 'Room already has a host') {
+                        alert('This room already has a host. You will join as a guest.');
+                        window.location.href = `/room/${roomId}`;
+                        return;
+                    }
+                    throw new Error(error.error || 'Failed to join room');
+                }
+                
+                const data = await response.json();
+                
+                if (data.qrCode) {
+                    const qrCodeElement = document.getElementById('qr-code');
+                    qrCodeElement.innerHTML = `<img src="${data.qrCode}" alt="QR Code">`;
+                }
+                
+                document.getElementById('room-id').textContent = roomId;
+                const shareUrl = `${window.location.origin}/room/${roomId}`;
+                document.getElementById('join-url').textContent = shareUrl;
+                
+                socket.emit('join-room', roomId, isHost);
+                
+            } catch (error) {
+                console.error('Error initializing room:', error);
+                alert('Failed to join room. Please try again.');
+                window.location.href = '/';
+            }
+        }
+        
+        socket.on('username-assigned', (data) => {
+            username = data.username;
+            userColor = data.color;
+            document.getElementById('welcome-message').textContent = `You joined as: ${username}`;
+        });
+        
+        socket.on('user-joined', (data) => {
+            addMessage({
+                type: 'system',
+                text: `${data.username} joined the chat`,
+                color: data.color
+            });
+        });
+        
+        socket.on('user-left', (data) => {
+            addMessage({
+                type: 'system',
+                text: `${data.username} left the chat`,
+                color: data.color
+            });
+        });
+        
+        socket.on('chat-message', (data) => {
+            addMessage({
+                type: 'chat',
+                username: data.username,
+                text: data.message,
+                color: data.color,
+                own: data.username === username
+            });
+        });
+        
+        socket.on('recent-messages', (messages) => {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = '';
+            messages.forEach(msg => {
+                addMessage({
+                    type: 'chat',
+                    username: msg.username,
+                    text: msg.message,
+                    color: msg.color,
+                    own: msg.username === username
+                });
+            });
+        });
+        
+        socket.on('error', (error) => {
+            alert(error);
+            if (error === 'Room already has a host') {
+                window.location.href = `/room/${roomId}`;
+            }
+        });
+        
+        function addMessage(message) {
+            const messagesDiv = document.getElementById('messages');
+            const messageElement = document.createElement('div');
+            
+            if (message.type === 'system') {
+                messageElement.className = 'message system';
+                messageElement.textContent = message.text;
+            } else {
+                messageElement.className = `message ${message.own ? 'own' : ''}`;
+                
+                const usernameSpan = document.createElement('span');
+                usernameSpan.className = 'username';
+                usernameSpan.textContent = message.username;
+                usernameSpan.style.color = message.color;
+                
+                const textSpan = document.createElement('span');
+                textSpan.className = 'text';
+                textSpan.textContent = message.text;
+                
+                messageElement.appendChild(usernameSpan);
+                messageElement.appendChild(textSpan);
+            }
+            
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function sendMessage() {
+            const messageInput = document.getElementById('message-text');
+            const message = messageInput.value.trim();
+            
+            if (message && username) {
+                socket.emit('chat-message', roomId, message);
+                messageInput.value = '';
+            }
+        }
+        
+        document.getElementById('message-text').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        function copyUrl() {
+            const url = new URL(window.location.href);
+            // Remove the host parameter
+            url.searchParams.delete('host');
+            const shareUrl = url.toString();
+            
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                const button = document.getElementById('copy-button');
+                button.textContent = 'Copied!';
+                button.classList.add('copied');
+                setTimeout(() => {
+                    button.textContent = 'Copy';
+                    button.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
+        }
+    </script>
+</body>
+</html>
