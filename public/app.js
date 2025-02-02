@@ -1,34 +1,68 @@
 const socket = io();
 let currentRoom = null;
 let username = null;
+let isHost = false;
 
 // Get room ID from URL
 function getRoomFromUrl() {
     return window.location.pathname.substring(1);
 }
 
-// Get stored username from localStorage
+// Get stored values from localStorage
 function getStoredUsername() {
     return localStorage.getItem('chatGuestUsername');
 }
 
-// Store username in localStorage
+function getStoredHostname() {
+    return localStorage.getItem('chatHostUsername');
+}
+
+function getStoredRoomId() {
+    return localStorage.getItem('chatRoomId');
+}
+
+// Store values in localStorage
 function storeUsername(name) {
     localStorage.setItem('chatGuestUsername', name);
+}
+
+function storeHostname(name) {
+    localStorage.setItem('chatHostUsername', name);
+}
+
+function storeRoomId(roomId) {
+    localStorage.setItem('chatRoomId', roomId);
 }
 
 // Initialize when page loads
 window.addEventListener('load', async () => {
     const roomId = getRoomFromUrl();
-    if (!roomId) return;  // Will be redirected
+    if (!roomId) {
+        // Check if we have a stored room ID
+        const storedRoomId = getStoredRoomId();
+        if (storedRoomId) {
+            window.location.href = `/room/${storedRoomId}`;
+            return;
+        }
+        return;  // Will be redirected
+    }
     
     currentRoom = roomId;
+    storeRoomId(roomId);  // Store the room ID
     console.log('Room ID:', roomId);
     
-    // Check if we have a stored username
+    // Check if we have stored usernames
     const storedUsername = getStoredUsername();
+    const storedHostname = getStoredHostname();
+    
     if (storedUsername) {
         username = storedUsername;
+        socket.emit('set-username', roomId, username);
+    }
+    
+    if (storedHostname) {
+        username = storedHostname;
+        isHost = true;
         socket.emit('set-username', roomId, username);
     }
     
@@ -73,11 +107,13 @@ function sendMessage() {
 socket.on('chat-message', (username, message) => {
     const messagesDiv = document.getElementById('messages');
     const messageElement = document.createElement('div');
-    messageElement.className = 'message' + (username === 'Host' ? ' own' : '');
+    const storedHostName = localStorage.getItem('chatHostUsername');
+    const isOwnMessage = isHost ? (username === storedHostName) : (username === username);
+    messageElement.className = 'message' + (isOwnMessage ? ' own' : '');
     
     const usernameElement = document.createElement('div');
     usernameElement.className = 'username';
-    usernameElement.textContent = username;
+    usernameElement.textContent = username;  // Display the actual username
     
     const messageContent = document.createElement('div');
     messageContent.className = 'message-text';

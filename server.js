@@ -57,6 +57,7 @@ app.get('/room', (req, res) => {
 app.get('/room/:roomId', async (req, res) => {
     const roomId = req.params.roomId;
     const isHost = req.query.host === 'true';
+    const hostName = req.query.hostName || 'Host';  // Default to 'Host' if no name provided
     
     // Validate room ID (6 digits)
     if (!roomId.match(/^\d{6}$/)) {
@@ -65,7 +66,7 @@ app.get('/room/:roomId', async (req, res) => {
         return;
     }
     
-    console.log('Room request:', roomId, 'Host:', isHost);
+    console.log('Room request:', roomId, 'Host:', isHost, 'Host Name:', hostName);
     
     try {
         // Create room if it doesn't exist
@@ -91,7 +92,8 @@ app.get('/room/:roomId', async (req, res) => {
                 messages: [],
                 guestCount: 0,
                 colors: new Map(),
-                hostId: null  // Track the host's socket ID
+                hostId: null,  // Track the host's socket ID
+                hostName: hostName  // Store the host name
             });
         }
         
@@ -144,45 +146,25 @@ io.on('connection', (socket) => {
     let username = null;
     let userColor = null;
 
-    socket.on('join-room', (roomId, isHost) => {
+    socket.on('join-room', (roomId, isHost, hostName) => {
         console.log('User joining room:', roomId, 'as host:', isHost);
         
+        // Leave current room if any
+        if (currentRoom) {
+            leaveCurrentRoom();
+        }
+        
+        // Get or create room
         const room = rooms.get(roomId);
         if (!room) {
-            console.log('Room not found for join:', roomId);
+            socket.emit('error', 'Room not found');
             return;
         }
         
-        // Check if trying to be host when room already has one
+        // Check if trying to join as host when room already has one
         if (isHost && room.hostId !== null && room.hostId !== socket.id) {
-            console.log('Rejecting host attempt, room already has host');
             socket.emit('error', 'Room already has a host');
             return;
-        }
-        
-        // Handle leaving previous room if needed
-        if (currentRoom && currentRoom !== roomId) {
-            const prevRoom = rooms.get(currentRoom);
-            if (prevRoom && prevRoom.users.has(socket.id)) {
-                const prevUsername = prevRoom.users.get(socket.id);
-                const prevColor = prevRoom.colors.get(socket.id);
-                
-                socket.leave(currentRoom);
-                prevRoom.users.delete(socket.id);
-                prevRoom.colors.delete(socket.id);
-                
-                // If leaving as host, clear host ID
-                if (prevRoom.hostId === socket.id) {
-                    prevRoom.hostId = null;
-                }
-                
-                if (prevUsername) {
-                    socket.to(currentRoom).emit('user-left', { 
-                        username: prevUsername, 
-                        color: prevColor 
-                    });
-                }
-            }
         }
         
         // Reset user state before joining new room
@@ -192,9 +174,10 @@ io.on('connection', (socket) => {
         // Set new username based on host/guest status
         if (isHost) {
             if (room.hostId === null) {
-                username = 'Host';
+                username = hostName;  // Use the name provided in the URL query
                 userColor = HOST_COLOR;
                 room.hostId = socket.id;
+                room.hostName = hostName;  // Store the host name in the room
             } else {
                 // If there's already a host, join as guest instead
                 room.guestCount++;
