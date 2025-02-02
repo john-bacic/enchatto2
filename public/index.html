@@ -14,6 +14,7 @@
 </head>
 <body>
     <div id="start-host" class="welcome-screen" style="display: none;">
+        <input type="text" id="host-name" placeholder="Enter your name (optional)" class="host-name-input">
         <button onclick="startHosting()" class="host-button">Create New Room</button>
     </div>
     
@@ -58,6 +59,16 @@
         const urlParams = new URLSearchParams(window.location.search);
         const isHost = urlParams.get('host') === 'true';
         const roomId = window.location.pathname.split('/').pop();
+        
+        // Load stored names from localStorage
+        const storedHostName = localStorage.getItem('chatHostUsername');
+        const storedGuestName = localStorage.getItem('chatGuestUsername');
+        
+        // If we have a stored host name, set it in the input
+        if (storedHostName) {
+            const hostNameInput = document.getElementById('host-name');
+            if (hostNameInput) hostNameInput.value = storedHostName;
+        }
         
         // Show/hide elements based on URL
         if (window.location.pathname === '/' || window.location.pathname === '') {
@@ -105,46 +116,63 @@
         }, { passive: false });
         
         function startHosting() {
-            window.location.href = '/room';
+            const storedName = localStorage.getItem('chatHostUsername');
+            const hostName = document.getElementById('host-name').value.trim() || storedName || 'Host';
+            // Store host name in localStorage
+            localStorage.setItem('chatHostUsername', hostName);
+            window.location.href = `/room?host=true&hostName=${encodeURIComponent(hostName)}`;
         }
         
         async function initializeRoom() {
-            try {
-                const response = await fetch(`/api/room/${roomId}?host=${isHost}`);
-                if (!response.ok) {
-                    const error = await response.json();
-                    if (error.error === 'Room already has a host') {
-                        alert('This room already has a host. You will join as a guest.');
-                        window.location.href = `/room/${roomId}`;
-                        return;
+            if (roomId) {
+                // Store room ID in localStorage
+                localStorage.setItem('chatRoomId', roomId);
+                
+                // If we're a guest and have a stored name, use it
+                if (!isHost && storedGuestName) {
+                    socket.emit('set-username', roomId, storedGuestName);
+                }
+                
+                try {
+                    const response = await fetch(`/api/room/${roomId}?host=${isHost}`);
+                    if (!response.ok) {
+                        const error = await response.json();
+                        if (error.error === 'Room already has a host') {
+                            alert('This room already has a host. You will join as a guest.');
+                            window.location.href = `/room/${roomId}`;
+                            return;
+                        }
+                        throw new Error(error.error || 'Failed to join room');
                     }
-                    throw new Error(error.error || 'Failed to join room');
+                    
+                    const data = await response.json();
+                    
+                    if (data.qrCode) {
+                        const qrCodeElement = document.getElementById('qr-code');
+                        qrCodeElement.innerHTML = `<img src="${data.qrCode}" alt="QR Code">`;
+                    }
+                    
+                    document.getElementById('room-id').textContent = roomId;
+                    const shareUrl = `${window.location.origin}/room/${roomId}`;
+                    document.getElementById('join-url').textContent = shareUrl;
+                    
+                    // Pass the stored host name when joining
+                    const storedHostName = localStorage.getItem('chatHostUsername');
+                    socket.emit('join-room', roomId, isHost, storedHostName || 'Host');
+                    
+                } catch (error) {
+                    console.error('Error initializing room:', error);
+                    alert('Failed to join room. Please try again.');
+                    window.location.href = '/';
                 }
-                
-                const data = await response.json();
-                
-                if (data.qrCode) {
-                    const qrCodeElement = document.getElementById('qr-code');
-                    qrCodeElement.innerHTML = `<img src="${data.qrCode}" alt="QR Code">`;
-                }
-                
-                document.getElementById('room-id').textContent = roomId;
-                const shareUrl = `${window.location.origin}/room/${roomId}`;
-                document.getElementById('join-url').textContent = shareUrl;
-                
-                socket.emit('join-room', roomId, isHost);
-                
-            } catch (error) {
-                console.error('Error initializing room:', error);
-                alert('Failed to join room. Please try again.');
-                window.location.href = '/';
             }
         }
         
         socket.on('username-assigned', (data) => {
             username = data.username;
             userColor = data.color;
-            document.getElementById('welcome-message').textContent = `You joined as: ${username}`;
+            const displayName = isHost ? localStorage.getItem('chatHostUsername') || 'Host' : username;
+            document.getElementById('welcome-message').textContent = `You joined as: ${displayName}`;
         });
         
         socket.on('user-joined', (data) => {
