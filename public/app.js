@@ -130,3 +130,38 @@ socket.on('chat-message', (username, message) => {
 socket.on('user-count', (count) => {
     document.getElementById('user-count').textContent = count;
 });
+
+// Add system message handling with fade-out effect
+function addSystemMessage(message) {
+    // Don't show system messages if username is undefined
+    if (message.includes('undefined')) return;
+    
+    const messageElement = document.createElement('div');
+    messageElement.className = 'system-message';
+    messageElement.textContent = message;
+    
+    const messagesContainer = document.getElementById('messages');
+    messagesContainer.appendChild(messageElement);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // Start fade out after 1.5 seconds
+    setTimeout(() => {
+        messageElement.classList.add('fade-out');
+        // Remove element after animation completes (0.5s)
+        setTimeout(() => {
+            messageElement.remove();
+        }, 500);
+    }, 1500);
+}
+
+socket.on('user-joined', (data) => {
+    if (data && data.username) {
+        addSystemMessage(`${data.username} joined the chat`);
+    }
+});
+
+socket.on('user-left', (data) => {
+    if (data && data.username) {
+        addSystemMessage(`${data.username} left the chat`);
+    }
+});

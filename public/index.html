@@ -18,6 +18,16 @@
         <button onclick="startHosting()" class="host-button">Create New Room</button>
     </div>
     
+    <div id="guest-name-prompt" class="welcome-screen" style="display: none;">
+        <div class="guest-selection">
+            <select id="previous-guests" class="guest-select" onchange="selectPreviousGuest()">
+                <option value="">Select previous name or enter new one</option>
+            </select>
+        </div>
+        <input type="text" id="guest-name" placeholder="Enter your name" class="guest-name-input">
+        <button onclick="joinAsGuest()" class="guest-button">Join Room</button>
+    </div>
+    
     <div id="room-info" style="display: none;" class="room-info">
         <button class="accordion-button active" onclick="toggleAccordion(this)">
             Share Room
@@ -62,7 +72,63 @@
         
         // Load stored names from localStorage
         const storedHostName = localStorage.getItem('chatHostUsername');
-        const storedGuestName = localStorage.getItem('chatGuestUsername');
+        const storedGuestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
+        
+        // Helper function to store guest info
+        function storeGuestInfo(name, color) {
+            const guestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
+            guestInfo[name] = { color, lastUsed: new Date().toISOString() };
+            localStorage.setItem('chatGuestInfo', JSON.stringify(guestInfo));
+            updateGuestSelect();
+        }
+        
+        // Helper function to get guest info
+        function getGuestInfo(name) {
+            const guestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
+            return guestInfo[name];
+        }
+        
+        // Helper function to update guest select dropdown
+        function updateGuestSelect() {
+            const select = document.getElementById('previous-guests');
+            if (!select) return;
+            
+            const guestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
+            const guests = Object.entries(guestInfo)
+                .sort((a, b) => new Date(b[1].lastUsed) - new Date(a[1].lastUsed));
+            
+            // Clear existing options except the first one
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+            
+            // Add guest options
+            guests.forEach(([name, info]) => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                option.style.color = info.color || '#000';
+                select.appendChild(option);
+            });
+        }
+        
+        // Function to handle selecting a previous guest
+        function selectPreviousGuest() {
+            const select = document.getElementById('previous-guests');
+            const guestNameInput = document.getElementById('guest-name');
+            const selectedName = select.value;
+            
+            if (selectedName) {
+                guestNameInput.value = selectedName;
+                const info = getGuestInfo(selectedName);
+                if (info && info.color) {
+                    guestNameInput.style.borderColor = info.color;
+                }
+            } else {
+                guestNameInput.value = '';
+                guestNameInput.style.borderColor = '';
+            }
+        }
         
         // If we have a stored host name, set it in the input
         if (storedHostName) {
@@ -70,13 +136,24 @@
             if (hostNameInput) hostNameInput.value = storedHostName;
         }
         
+        // Initialize guest select if we're not a host
+        if (!isHost) {
+            updateGuestSelect();
+        }
+        
         // Show/hide elements based on URL
         if (window.location.pathname === '/' || window.location.pathname === '') {
             document.getElementById('start-host').style.display = 'flex';
             document.getElementById('room-info').style.display = 'none';
             document.getElementById('chat-container').style.display = 'none';
+        } else if (!isHost) {
+            document.getElementById('start-host').style.display = 'none';
+            document.getElementById('guest-name-prompt').style.display = 'flex';
+            document.getElementById('room-info').style.display = 'none';
+            document.getElementById('chat-container').style.display = 'none';
         } else {
             document.getElementById('start-host').style.display = 'none';
+            document.getElementById('guest-name-prompt').style.display = 'none';
             document.getElementById('room-info').style.display = isHost ? 'block' : 'none';
             document.getElementById('chat-container').style.display = 'flex';
             initializeRoom();
@@ -122,16 +199,30 @@
             localStorage.setItem('chatHostUsername', hostName);
             window.location.href = `/room?host=true&hostName=${encodeURIComponent(hostName)}`;
         }
+
+        function joinAsGuest() {
+            const guestName = document.getElementById('guest-name').value.trim();
+            if (!guestName) {
+                alert('Please enter a name');
+                return;
+            }
+            
+            // Get existing guest info if available
+            const existingInfo = getGuestInfo(guestName);
+            const guestColor = existingInfo ? existingInfo.color : null;
+            
+            // Store guest info with timestamp
+            storeGuestInfo(guestName, guestColor);
+            
+            document.getElementById('guest-name-prompt').style.display = 'none';
+            document.getElementById('chat-container').style.display = 'flex';
+            initializeRoom();
+        }
         
         async function initializeRoom() {
             if (roomId) {
                 // Store room ID in localStorage
                 localStorage.setItem('chatRoomId', roomId);
-                
-                // If we're a guest and have a stored name, use it
-                if (!isHost && storedGuestName) {
-                    socket.emit('set-username', roomId, storedGuestName);
-                }
                 
                 try {
                     const response = await fetch(`/api/room/${roomId}?host=${isHost}`);
@@ -156,9 +247,19 @@
                     const shareUrl = `${window.location.origin}/room/${roomId}`;
                     document.getElementById('join-url').textContent = shareUrl;
                     
-                    // Pass the stored host name when joining
-                    const storedHostName = localStorage.getItem('chatHostUsername');
-                    socket.emit('join-room', roomId, isHost, storedHostName || 'Host');
+                    // Get the appropriate stored info
+                    let storedName, storedColor;
+                    if (isHost) {
+                        storedName = localStorage.getItem('chatHostUsername');
+                    } else {
+                        const guestName = document.getElementById('guest-name').value.trim();
+                        const guestInfo = getGuestInfo(guestName);
+                        storedName = guestName;
+                        storedColor = guestInfo ? guestInfo.color : null;
+                    }
+                    
+                    // Join room with stored info
+                    socket.emit('join-room', roomId, isHost, storedName || (isHost ? 'Host' : ''), storedColor);
                     
                 } catch (error) {
                     console.error('Error initializing room:', error);
@@ -171,6 +272,17 @@
         socket.on('username-assigned', (data) => {
             username = data.username;
             userColor = data.color;
+            
+            // Store the color if we're a guest
+            if (!isHost && username) {
+                storeGuestInfo(username, userColor);
+                // Update the input field border color
+                const guestNameInput = document.getElementById('guest-name');
+                if (guestNameInput) {
+                    guestNameInput.style.borderColor = userColor;
+                }
+            }
+            
             const displayName = isHost ? localStorage.getItem('chatHostUsername') || 'Host' : username;
             document.getElementById('welcome-message').textContent = `You joined as: ${displayName}`;
         });

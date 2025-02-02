@@ -64,6 +64,48 @@ body {
     background: #1e1e1e;
 }
 
+.host-name-input,
+.guest-name-input {
+    padding: 12px 20px;
+    font-size: 16px;
+    border: 2px solid #1877f2;
+    border-radius: 8px;
+    width: 300px;
+    max-width: 90%;
+    outline: none;
+    transition: border-color 0.3s ease;
+    background: #2d2d2d;
+    color: #ffffff;
+}
+
+.host-name-input:focus,
+.guest-name-input:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2);
+}
+
+.host-button,
+.guest-button {
+    padding: 12px 24px;
+    font-size: 16px;
+    background: #1877f2;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+}
+
+.host-button:hover,
+.guest-button:hover {
+    background: #0d6efd;
+}
+
+.host-button:active,
+.guest-button:active {
+    transform: scale(0.98);
+}
+
 .host-button {
     background: #1877f2;
     color: white;
@@ -81,22 +123,6 @@ body {
 
 .host-button:active {
     transform: scale(0.98);
-}
-
-.host-name-input {
-    padding: 12px 20px;
-    font-size: 16px;
-    border: 2px solid #1877f2;
-    border-radius: 8px;
-    width: 300px;
-    max-width: 90%;
-    outline: none;
-    transition: border-color 0.3s ease;
-}
-
-.host-name-input:focus {
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2);
 }
 
 .room-info {
@@ -287,7 +313,7 @@ body {
 }
 
 .message.system {
-    background: #363636;
+    background: #1e1e1e;
     color: #a0a0a0;
     font-style: italic;
     text-align: center;
@@ -299,6 +325,25 @@ body {
 
 .message.system .username {
     color: #a0a0a0;
+}
+
+.system-message {
+    text-align: center;
+    padding: 10px;
+    margin: 8px 20px;
+    background: blue;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: #a0a0a0;
+    font-style: italic;
+    opacity: 1;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.system-message.fade-out {
+    opacity: 0;
+    transform: translateY(-20px);
 }
 
 .message-input-container {
@@ -353,6 +398,35 @@ body {
     width: 18px;
     height: 18px;
     fill: currentColor;
+}
+
+.guest-selection {
+    width: 300px;
+    max-width: 90%;
+    margin-bottom: 10px;
+}
+
+.guest-select {
+    width: 100%;
+    padding: 12px 20px;
+    font-size: 16px;
+    border: 2px solid #1877f2;
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.3s ease;
+    background: #2d2d2d;
+    color: #ffffff;
+    cursor: pointer;
+}
+
+.guest-select option {
+    padding: 12px;
+    background: #2d2d2d;
+}
+
+.guest-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2);
 }
 
 @media (max-width: 480px) {
