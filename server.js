@@ -263,8 +263,7 @@ io.on('connection', (socket) => {
         if (currentRoom) {
             const room = rooms.get(currentRoom);
             if (room && room.users.has(socket.id)) {
-                const usernameThatLeft = room.users.get(socket.id);
-                const colorThatLeft = room.colors.get(socket.id);
+                const user = room.users.get(socket.id);
                 
                 // If disconnecting user was host, clear host ID
                 if (room.hostId === socket.id) {
@@ -274,10 +273,10 @@ io.on('connection', (socket) => {
                 room.users.delete(socket.id);
                 room.colors.delete(socket.id);
                 
-                if (usernameThatLeft) {
+                if (user) {
                     socket.to(currentRoom).emit('user-left', { 
-                        username: usernameThatLeft, 
-                        color: colorThatLeft 
+                        username: user.username, 
+                        color: user.color 
                     });
                 }
             }
