@@ -313,7 +313,7 @@ body {
 }
 
 .message.system {
-    background: #1e1e1e;
+    background: #36363600 ;
     color: #a0a0a0;
     font-style: italic;
     text-align: center;
@@ -325,25 +325,6 @@ body {
 
 .message.system .username {
     color: #a0a0a0;
-}
-
-.system-message {
-    text-align: center;
-    padding: 10px;
-    margin: 8px 20px;
-    background: blue;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    color: #a0a0a0;
-    font-style: italic;
-    opacity: 1;
-    transition: opacity 0.5s ease, transform 0.5s ease;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.system-message.fade-out {
-    opacity: 0;
-    transform: translateY(-20px);
 }
 
 .message-input-container {

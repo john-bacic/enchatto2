@@ -207,27 +207,20 @@ io.on('connection', (socket) => {
             }
         }
         
-        // After setting username and color
-        if (username) {
-            currentRoom = room;
-            socket.join(roomId);
-            room.users.set(socket.id, { username, color: userColor });
-            
-            // Emit join event to all users in the room except the joiner
-            socket.to(roomId).emit('user-joined', { 
-                username,
-                color: userColor
-            });
-            
-            // Send user info back to the joiner
-            socket.emit('username-assigned', { 
-                username, 
-                color: userColor 
-            });
-            
-            // Update user count for all users in the room
-            io.to(roomId).emit('user-count', room.users.size);
-        }
+        // Join new room and update room state
+        currentRoom = roomId;
+        socket.join(roomId);
+        room.users.set(socket.id, { username, color: userColor });
+        
+        // Notify user of their assigned name and color
+        socket.emit('username-assigned', { username, color: userColor });
+        
+        // Notify others
+        socket.to(roomId).emit('user-joined', { username, color: userColor });
+        
+        // Send recent messages
+        const recentMessages = room.messages.slice(-50);
+        socket.emit('recent-messages', recentMessages);
     });
 
     socket.on('set-username', (roomId, requestedUsername) => {
@@ -268,66 +261,29 @@ io.on('connection', (socket) => {
         console.log('User disconnected:', socket.id);
         
         if (currentRoom) {
-            const userInfo = currentRoom.users.get(socket.id);
-            if (userInfo && userInfo.username) {
-                socket.to(currentRoom.id).emit('user-left', {
-                    username: userInfo.username,
-                    color: userInfo.color
-                });
+            const room = rooms.get(currentRoom);
+            if (room && room.users.has(socket.id)) {
+                const usernameThatLeft = room.users.get(socket.id);
+                const colorThatLeft = room.colors.get(socket.id);
+                
+                // If disconnecting user was host, clear host ID
+                if (room.hostId === socket.id) {
+                    room.hostId = null;
+                }
+                
+                room.users.delete(socket.id);
+                room.colors.delete(socket.id);
+                
+                if (usernameThatLeft) {
+                    socket.to(currentRoom).emit('user-left', { 
+                        username: usernameThatLeft, 
+                        color: colorThatLeft 
+                    });
+                }
             }
-            
-            if (currentRoom.hostId === socket.id) {
-                currentRoom.hostId = null;
-                currentRoom.hostName = null;
-            }
-            
-            currentRoom.users.delete(socket.id);
-            currentRoom.colors.delete(socket.id);
-            socket.leave(currentRoom.id);
-            
-            // Update user count for remaining users
-            io.to(currentRoom.id).emit('user-count', currentRoom.users.size);
-            
-            // Clean up empty rooms
-            if (currentRoom.users.size === 0) {
-                rooms.delete(currentRoom.id);
-            }
-            
-            currentRoom = null;
         }
     });
 });
-
-function leaveCurrentRoom() {
-    if (currentRoom) {
-        const userInfo = currentRoom.users.get(socket.id);
-        if (userInfo && userInfo.username) {
-            socket.to(currentRoom.id).emit('user-left', {
-                username: userInfo.username,
-                color: userInfo.color
-            });
-        }
-        
-        if (currentRoom.hostId === socket.id) {
-            currentRoom.hostId = null;
-            currentRoom.hostName = null;
-        }
-        
-        currentRoom.users.delete(socket.id);
-        currentRoom.colors.delete(socket.id);
-        socket.leave(currentRoom.id);
-        
-        // Update user count for remaining users
-        io.to(currentRoom.id).emit('user-count', currentRoom.users.size);
-        
-        // Clean up empty rooms
-        if (currentRoom.users.size === 0) {
-            rooms.delete(currentRoom.id);
-        }
-        
-        currentRoom = null;
-    }
-}
 
 // Start server
 const PORT = process.env.PORT || 3000;
