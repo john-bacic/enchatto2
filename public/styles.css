@@ -135,10 +135,12 @@ body {
 
 .accordion-button {
     width: 100%;
-    padding: 8px 12px;
-    background: #363636;
+    padding: 16px 32px;
+
+    background: #36363600;
+
     border: none;
-    border-radius: 8px;
+    /* border-radius: 8px; */
     font-size: 14px;
     font-weight: 500;
     color: #1877f2;
@@ -173,6 +175,7 @@ body {
     overflow: hidden;
     transition: max-height 0.3s ease-out;
     margin-top: 4px;
+    padding: 0 8px 0 8px;
 }
 
 .accordion-content.show {
@@ -254,7 +257,7 @@ body {
 
 #welcome-message {
     text-align: center;
-    padding: 6px;
+    padding: 8px;
     font-size: 14px;
     font-weight: bold;
     background: #2d2d2d;
