@@ -131,6 +131,14 @@ body {
     box-shadow: 0 1px 2px rgba(0,0,0,0.2);
     position: relative;
     z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.room-info h2 {
+    margin: 0;
+    color: #fff;
 }
 
 .accordion-button {
@@ -243,6 +251,12 @@ body {
     flex-direction: column;
     background: #1e1e1e;
     overflow: hidden;
+}
+
+.chat-header {
+    /* background-color: #1a1a1a; */
+    padding: 10px;
+    /* border-bottom: 1px solid #333; */
 }
 
 /* Position chat container below room info when it's visible */
@@ -429,36 +443,52 @@ body {
     box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2);
 }
 
-.message .translation {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    font-size: 1.1em;
-    color: #ffffff;
+.message-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
-.message .translation-text {
-    font-weight: 500;
-    display: block;
-    line-height: 1.4;
-    color: #ffffff;
+.text {
+    margin: 0;
+    padding: 0;
 }
 
-.message.own .translation {
-    border-top-color: rgba(255, 255, 255, 0.15);
+.translation-text {
+    opacity: 0.9;
 }
 
-.message .translation-label {
-    margin-right: 6px;
-    font-size: 1.1em;
+.translation-toggle {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-left: auto;
 }
 
-.message .translation-text {
-    font-style: normal;
+.translation-toggle label {
+    color: #fff;
+    font-size: 14px;
+    font-weight: bold;
+    margin-right: 16px;
+    user-select: none;
+    text-transform: uppercase;
 }
 
-.message.own .translation {
-    border-top-color: rgba(255, 255, 255, 0.15);
+.translation-toggle label:last-child {
+    margin-right: 0;
+}
+
+.translation-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    margin: 0;
+    accent-color: #1877f2;
+}
+
+.translation.hidden,
+.text.hidden {
+    display: none;
 }
 
 @media (max-width: 480px) {

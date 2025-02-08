@@ -321,13 +321,15 @@ io.on('connection', (socket) => {
         const translations = {
             original: message,
             translated: null,
-            sourceLang: detectedLang
+            sourceLang: detectedLang,
+            targetLang: null
         };
 
         // Translate if the message is in English or Japanese
         if (detectedLang === 'en' || detectedLang === 'ja') {
             const targetLang = detectedLang === 'en' ? 'ja' : 'en';
             translations.translated = await translateText(message, targetLang);
+            translations.targetLang = targetLang;
         }
 
         // Add message to room history
@@ -336,6 +338,7 @@ io.on('connection', (socket) => {
             message: translations.original,
             translation: translations.translated,
             sourceLang: translations.sourceLang,
+            targetLang: translations.targetLang,
             color: userColor,
             timestamp: new Date()
         });
@@ -350,6 +353,8 @@ io.on('connection', (socket) => {
             username,
             message: translations.original,
             translation: translations.translated,
+            sourceLang: translations.sourceLang,
+            targetLang: translations.targetLang,
             color: userColor
         });
     });

@@ -39,7 +39,7 @@
             <div class="info">
                 <div>Room Number: <strong id="room-id">Loading...</strong></div>
                 <div class="url-container">
-                    Join URL: <strong id="join-url">Loading...</strong>
+                    <strong id="join-url">Loading...</strong>
                     <button onclick="copyUrl()" class="copy-button" id="copy-button">Copy</button>
                 </div>
             </div>
@@ -47,6 +47,16 @@
     </div>
     
     <div id="chat-container" style="display: none;" class="chat-container">
+        <div class="room-info">
+            <div class="chat-header">
+                <div class="translation-toggle">
+                    <input type="checkbox" id="show-en" checked>
+                    <label for="show-en">EN</label>
+                    <input type="checkbox" id="show-jp" checked>
+                    <label for="show-jp">JP</label>
+                </div>
+            </div>
+        </div>
         <div id="welcome-message"></div>
         <div id="messages"></div>
         <div class="message-input-container">
@@ -269,6 +279,84 @@
             }
         }
         
+        function createMessageElement(msg, isOwn = false) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            if (isOwn) {
+                messageElement.classList.add('own');
+            }
+
+            // Create username element
+            const usernameSpan = document.createElement('span');
+            usernameSpan.className = 'username';
+            usernameSpan.textContent = msg.username;
+            usernameSpan.style.color = msg.color;
+            messageElement.appendChild(usernameSpan);
+
+            // Create message container to hold both original and translated text
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            messageElement.appendChild(messageContent);
+
+            // Handle original message
+            const originalText = document.createElement('span');
+            originalText.className = 'text';
+            originalText.textContent = msg.message;
+
+            // Add language class based on detected language
+            if (msg.sourceLang === 'en') {
+                originalText.classList.add('en-text');
+                originalText.style.display = showEnCheckbox.checked ? '' : 'none';
+            } else if (msg.sourceLang === 'ja') {
+                originalText.classList.add('jp-text');
+                originalText.style.display = showJpCheckbox.checked ? '' : 'none';
+            }
+            messageContent.appendChild(originalText);
+
+            // Handle translation if available
+            if (msg.translation && msg.targetLang) {
+                const translationText = document.createElement('span');
+                translationText.className = 'text translation-text';
+                translationText.textContent = msg.translation;
+
+                // Add language class based on target language
+                if (msg.targetLang === 'en') {
+                    translationText.classList.add('en-text');
+                    translationText.style.display = showEnCheckbox.checked ? '' : 'none';
+                } else if (msg.targetLang === 'ja') {
+                    translationText.classList.add('jp-text');
+                    translationText.style.display = showJpCheckbox.checked ? '' : 'none';
+                }
+                messageContent.appendChild(translationText);
+            }
+
+            return messageElement;
+        }
+
+        // Initialize language toggles
+        const showEnCheckbox = document.getElementById('show-en');
+        const showJpCheckbox = document.getElementById('show-jp');
+
+        function updateMessageVisibility() {
+            const messages = document.querySelectorAll('.message');
+            messages.forEach(message => {
+                // Update English text visibility
+                const enTexts = message.querySelectorAll('.en-text');
+                enTexts.forEach(text => {
+                    text.style.display = showEnCheckbox.checked ? '' : 'none';
+                });
+
+                // Update Japanese text visibility
+                const jpTexts = message.querySelectorAll('.jp-text');
+                jpTexts.forEach(text => {
+                    text.style.display = showJpCheckbox.checked ? '' : 'none';
+                });
+            });
+        }
+
+        showEnCheckbox.addEventListener('change', updateMessageVisibility);
+        showJpCheckbox.addEventListener('change', updateMessageVisibility);
+        
         socket.on('username-assigned', (data) => {
             username = data.username;
             userColor = data.color;
@@ -303,96 +391,23 @@
             });
         });
         
-        socket.on('chat-message', (data) => {
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('message');
-            if (data.username === username) {
-                messageElement.classList.add('own');
-            }
-
-            // Create username element
-            const usernameSpan = document.createElement('span');
-            usernameSpan.className = 'username';
-            usernameSpan.textContent = data.username;
-            usernameSpan.style.color = data.color;
-
-            // Create original message element
-            const originalText = document.createElement('span');
-            originalText.className = 'text';
-            originalText.textContent = data.message;
-
-            // Add elements to message container
-            messageElement.appendChild(usernameSpan);
-            messageElement.appendChild(originalText);
-
-            // Add translation if available
-            if (data.translation) {
-                const translationContainer = document.createElement('div');
-                translationContainer.className = 'translation';
-                
-                const translationText = document.createElement('span');
-                translationText.className = 'translation-text';
-                translationText.textContent = data.translation;
-
-                translationContainer.appendChild(translationText);
-                messageElement.appendChild(translationContainer);
-            }
-
-            const chatMessages = document.getElementById('messages');
-            chatMessages.appendChild(messageElement);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+        socket.on('chat-message', (msg) => {
+            const messagesDiv = document.getElementById('messages');
+            const messageElement = createMessageElement(msg, msg.username === username);
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         });
-        
+
         socket.on('recent-messages', (messages) => {
             const messagesDiv = document.getElementById('messages');
             messagesDiv.innerHTML = '';
             messages.forEach(msg => {
-                const messageElement = document.createElement('div');
-                messageElement.classList.add('message');
-                if (msg.username === username) {
-                    messageElement.classList.add('own');
-                }
-
-                // Create username element
-                const usernameSpan = document.createElement('span');
-                usernameSpan.className = 'username';
-                usernameSpan.textContent = msg.username;
-                usernameSpan.style.color = msg.color;
-
-                // Create original message element
-                const originalText = document.createElement('span');
-                originalText.className = 'text';
-                originalText.textContent = msg.message;
-
-                // Add elements to message container
-                messageElement.appendChild(usernameSpan);
-                messageElement.appendChild(originalText);
-
-                // Add translation if available
-                if (msg.translation) {
-                    const translationContainer = document.createElement('div');
-                    translationContainer.className = 'translation';
-                    
-                    const translationText = document.createElement('span');
-                    translationText.className = 'translation-text';
-                    translationText.textContent = msg.translation;
-
-                    translationContainer.appendChild(translationText);
-                    messageElement.appendChild(translationContainer);
-                }
-
+                const messageElement = createMessageElement(msg, msg.username === username);
                 messagesDiv.appendChild(messageElement);
             });
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         });
-        
-        socket.on('error', (error) => {
-            alert(error);
-            if (error === 'Room already has a host') {
-                window.location.href = `/room/${roomId}`;
-            }
-        });
-        
+
         function addMessage(message) {
             const messagesDiv = document.getElementById('messages');
             const messageElement = document.createElement('div');
