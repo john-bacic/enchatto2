@@ -4,6 +4,12 @@ const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
 const QRCode = require('qrcode');
+const OpenAI = require('openai');
+require('dotenv').config();
+
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+});
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
@@ -139,6 +145,53 @@ app.get('/api/room/:roomId', (req, res) => {
     });
 });
 
+// Function to detect language
+async function detectLanguage(text) {
+    try {
+        const response = await openai.chat.completions.create({
+            model: "gpt-4-turbo",
+            messages: [
+                {
+                    role: "system",
+                    content: "You are a language detector. Respond with 'en' for English, 'ja' for Japanese, or 'other' for other languages. Only respond with these exact values."
+                },
+                {
+                    role: "user",
+                    content: text
+                }
+            ],
+            max_tokens: 5
+        });
+        return response.choices[0].message.content.trim().toLowerCase();
+    } catch (error) {
+        console.error('Language detection error:', error);
+        return 'other';
+    }
+}
+
+// Function to translate text
+async function translateText(text, targetLang) {
+    try {
+        const response = await openai.chat.completions.create({
+            model: "gpt-4-turbo",
+            messages: [
+                {
+                    role: "system",
+                    content: `You are a translator. Translate the text to ${targetLang === 'ja' ? 'Japanese' : 'English'}. Preserve the tone and meaning. Only respond with the translation, nothing else.`
+                },
+                {
+                    role: "user",
+                    content: text
+                }
+            ]
+        });
+        return response.choices[0].message.content.trim();
+    } catch (error) {
+        console.error('Translation error:', error);
+        return text;
+    }
+}
+
 // Socket.IO events
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
@@ -235,26 +288,51 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('chat-message', (roomId, message) => {
-        if (!username) return;
-        
-        console.log('Chat message:', roomId, username, message);
+    socket.on('chat-message', async (roomId, message) => {
+        if (!currentRoom || !username) return;
         
         const room = rooms.get(roomId);
-        if (!room) {
-            console.log('Room not found for message:', roomId);
-            return;
-        }
+        if (!room) return;
+
+        // Detect the language of the message
+        const detectedLang = await detectLanguage(message);
         
-        // Store message with color
-        const messageData = { username, message, color: userColor };
-        room.messages.push(messageData);
+        // Initialize translation object
+        const translations = {
+            original: message,
+            translated: null,
+            sourceLang: detectedLang
+        };
+
+        // Translate if the message is in English or Japanese
+        if (detectedLang === 'en' || detectedLang === 'ja') {
+            const targetLang = detectedLang === 'en' ? 'ja' : 'en';
+            translations.translated = await translateText(message, targetLang);
+        }
+
+        // Add message to room history
+        room.messages.push({
+            username,
+            message: translations.original,
+            translation: translations.translated,
+            sourceLang: translations.sourceLang,
+            color: userColor,
+            timestamp: new Date()
+        });
+
+        // Trim message history if needed
         if (room.messages.length > 100) {
-            room.messages.shift();
+            room.messages = room.messages.slice(-100);
         }
-        
-        // Broadcast to room
-        io.to(roomId).emit('chat-message', messageData);
+
+        // Broadcast message to all users in the room
+        io.to(roomId).emit('chat-message', {
+            username,
+            message: translations.original,
+            translation: translations.translated,
+            sourceLang: translations.sourceLang,
+            color: userColor
+        });
     });
     
     socket.on('disconnect', () => {

@@ -127,7 +127,7 @@ body {
 
 .room-info {
     background: #2d2d2d;
-    padding: 8px;
+    padding: 8px 16px 0 16px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.2);
     position: relative;
     z-index: 2;
@@ -135,12 +135,10 @@ body {
 
 .accordion-button {
     width: 100%;
-    padding: 16px 32px;
-
-    background: #36363600;
-
+    padding: 8px 12px;
+    background: #363636;
     border: none;
-    /* border-radius: 8px; */
+    border-radius: 8px;
     font-size: 14px;
     font-weight: 500;
     color: #1877f2;
@@ -175,7 +173,6 @@ body {
     overflow: hidden;
     transition: max-height 0.3s ease-out;
     margin-top: 4px;
-    padding: 0 8px 0 8px;
 }
 
 .accordion-content.show {
@@ -257,7 +254,7 @@ body {
 
 #welcome-message {
     text-align: center;
-    padding: 8px;
+    padding: 6px;
     font-size: 14px;
     font-weight: bold;
     background: #2d2d2d;
@@ -316,7 +313,7 @@ body {
 }
 
 .message.system {
-    background: #36363600 ;
+    background: #1e1e1e;
     color: #a0a0a0;
     font-style: italic;
     text-align: center;
@@ -328,6 +325,25 @@ body {
 
 .message.system .username {
     color: #a0a0a0;
+}
+
+.system-message {
+    text-align: center;
+    padding: 10px;
+    margin: 8px 20px;
+    background: blue;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: #a0a0a0;
+    font-style: italic;
+    opacity: 1;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.system-message.fade-out {
+    opacity: 0;
+    transform: translateY(-20px);
 }
 
 .message-input-container {
@@ -411,6 +427,27 @@ body {
 .guest-select:focus {
     border-color: #0d6efd;
     box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2);
+}
+
+.message .translation {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 0.9em;
+    color: #a0a0a0;
+}
+
+.message .translation-label {
+    margin-right: 6px;
+    font-size: 1.1em;
+}
+
+.message .translation-text {
+    font-style: italic;
+}
+
+.message.own .translation {
+    border-top-color: rgba(255, 255, 255, 0.15);
 }
 
 @media (max-width: 480px) {

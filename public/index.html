@@ -39,7 +39,7 @@
             <div class="info">
                 <div>Room Number: <strong id="room-id">Loading...</strong></div>
                 <div class="url-container">
-                    <strong id="join-url">Loading...</strong>
+                    Join URL: <strong id="join-url">Loading...</strong>
                     <button onclick="copyUrl()" class="copy-button" id="copy-button">Copy</button>
                 </div>
             </div>
@@ -304,13 +304,48 @@
         });
         
         socket.on('chat-message', (data) => {
-            addMessage({
-                type: 'chat',
-                username: data.username,
-                text: data.message,
-                color: data.color,
-                own: data.username === username
-            });
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            if (data.username === username) {
+                messageElement.classList.add('own');
+            }
+
+            // Create username element
+            const usernameSpan = document.createElement('span');
+            usernameSpan.className = 'username';
+            usernameSpan.textContent = data.username;
+            usernameSpan.style.color = data.color;
+
+            // Create original message element
+            const originalText = document.createElement('span');
+            originalText.className = 'text';
+            originalText.textContent = data.message;
+
+            // Add elements to message container
+            messageElement.appendChild(usernameSpan);
+            messageElement.appendChild(originalText);
+
+            // Add translation if available
+            if (data.translation) {
+                const translationContainer = document.createElement('div');
+                translationContainer.className = 'translation';
+                
+                const translationLabel = document.createElement('span');
+                translationLabel.className = 'translation-label';
+                translationLabel.textContent = data.sourceLang === 'en' ? '🇯🇵' : '🇺🇸';
+                
+                const translationText = document.createElement('span');
+                translationText.className = 'translation-text';
+                translationText.textContent = data.translation;
+
+                translationContainer.appendChild(translationLabel);
+                translationContainer.appendChild(translationText);
+                messageElement.appendChild(translationContainer);
+            }
+
+            const chatMessages = document.getElementById('messages');
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         });
         
         socket.on('recent-messages', (messages) => {
