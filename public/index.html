@@ -347,14 +347,43 @@
             const messagesDiv = document.getElementById('messages');
             messagesDiv.innerHTML = '';
             messages.forEach(msg => {
-                addMessage({
-                    type: 'chat',
-                    username: msg.username,
-                    text: msg.message,
-                    color: msg.color,
-                    own: msg.username === username
-                });
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message');
+                if (msg.username === username) {
+                    messageElement.classList.add('own');
+                }
+
+                // Create username element
+                const usernameSpan = document.createElement('span');
+                usernameSpan.className = 'username';
+                usernameSpan.textContent = msg.username;
+                usernameSpan.style.color = msg.color;
+
+                // Create original message element
+                const originalText = document.createElement('span');
+                originalText.className = 'text';
+                originalText.textContent = msg.message;
+
+                // Add elements to message container
+                messageElement.appendChild(usernameSpan);
+                messageElement.appendChild(originalText);
+
+                // Add translation if available
+                if (msg.translation) {
+                    const translationContainer = document.createElement('div');
+                    translationContainer.className = 'translation';
+                    
+                    const translationText = document.createElement('span');
+                    translationText.className = 'translation-text';
+                    translationText.textContent = msg.translation;
+
+                    translationContainer.appendChild(translationText);
+                    messageElement.appendChild(translationContainer);
+                }
+
+                messagesDiv.appendChild(messageElement);
             });
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         });
         
         socket.on('error', (error) => {

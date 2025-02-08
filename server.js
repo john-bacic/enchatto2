@@ -37,7 +37,7 @@ function generateColor() {
         '#F1C40F', // Yellow
         '#E74C3C', // Red
         '#16A085', // Teal
-        '#2C3E50', // Navy
+        '#3F5C78', // bright blue
         '#8E44AD', // Violet
         '#F39C12'  // Dark Orange
     ];
@@ -169,8 +169,23 @@ async function detectLanguage(text) {
     }
 }
 
+// Translation cache
+const translationCache = new Map();
+
+// Function to get cache key
+function getTranslationCacheKey(text, targetLang) {
+    return `${text}:${targetLang}`;
+}
+
 // Function to translate text
 async function translateText(text, targetLang) {
+    const cacheKey = getTranslationCacheKey(text, targetLang);
+    
+    // Check cache first
+    if (translationCache.has(cacheKey)) {
+        return translationCache.get(cacheKey);
+    }
+
     try {
         const response = await openai.chat.completions.create({
             model: "gpt-4-turbo",
@@ -185,7 +200,12 @@ async function translateText(text, targetLang) {
                 }
             ]
         });
-        return response.choices[0].message.content.trim();
+        const translation = response.choices[0].message.content.trim();
+        
+        // Store in cache
+        translationCache.set(cacheKey, translation);
+        
+        return translation;
     } catch (error) {
         console.error('Translation error:', error);
         return text;
