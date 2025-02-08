@@ -277,19 +277,19 @@ body {
 .message {
     padding: 8px 12px;
     border-radius: 16px;
-    background: #2d2d2d;
+    background: #222222;
     max-width: 80%;
     word-wrap: break-word;
     position: relative;
     animation: message-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    color: #e0e0e0;
+    color: #ffffff;
 }
 
 .message.own {
-    background: #e7f3ff;
+    background: #1d2733;
     margin-left: auto;
     border-bottom-right-radius: 4px;
-    color: #000;
+    color: #ffffff;
 }
 
 .message:not(.own) {
@@ -299,13 +299,13 @@ body {
 .message .username {
     font-weight: bold;
     font-size: 0.9em;
-    color: #000;
+    color: #1877f2;
     display: block;
     margin-bottom: 4px;
 }
 
 .message.own .username {
-    color: #1877f2;
+    color: #4b96f3;
 }
 
 .message .message-text {
@@ -430,11 +430,22 @@ body {
 }
 
 .message .translation {
-    margin-top: 4px;
-    padding-top: 4px;
+    margin-top: 8px;
+    padding-top: 8px;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
-    font-size: 0.9em;
-    color: #a0a0a0;
+    font-size: 1.1em;
+    color: #ffffff;
+}
+
+.message .translation-text {
+    font-weight: 500;
+    display: block;
+    line-height: 1.4;
+    color: #ffffff;
+}
+
+.message.own .translation {
+    border-top-color: rgba(255, 255, 255, 0.15);
 }
 
 .message .translation-label {
@@ -443,7 +454,7 @@ body {
 }
 
 .message .translation-text {
-    font-style: italic;
+    font-style: normal;
 }
 
 .message.own .translation {

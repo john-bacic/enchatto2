@@ -330,7 +330,6 @@ io.on('connection', (socket) => {
             username,
             message: translations.original,
             translation: translations.translated,
-            sourceLang: translations.sourceLang,
             color: userColor
         });
     });

@@ -330,15 +330,10 @@
                 const translationContainer = document.createElement('div');
                 translationContainer.className = 'translation';
                 
-                const translationLabel = document.createElement('span');
-                translationLabel.className = 'translation-label';
-                translationLabel.textContent = data.sourceLang === 'en' ? '🇯🇵' : '🇺🇸';
-                
                 const translationText = document.createElement('span');
                 translationText.className = 'translation-text';
                 translationText.textContent = data.translation;
 
-                translationContainer.appendChild(translationLabel);
                 translationContainer.appendChild(translationText);
                 messageElement.appendChild(translationContainer);
             }
