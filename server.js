@@ -5,7 +5,8 @@ const io = require('socket.io')(http, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
-    }
+    },
+    transports: ['websocket', 'polling']
 });
 const path = require('path');
 const QRCode = require('qrcode');
@@ -237,6 +238,8 @@ io.on('connection', (socket) => {
     let userColor = null;
 
     socket.on('join-room', (roomId, isHost, storedName, storedColor) => {
+        console.log(`Socket ${socket.id} joining room ${roomId} as ${isHost ? 'host' : 'guest'}`);
+        
         // Leave current room if any
         if (currentRoom) {
             socket.leave(currentRoom);
@@ -247,6 +250,7 @@ io.on('connection', (socket) => {
         if (!room) {
             room = createRoom(roomId);
             rooms.set(roomId, room);
+            console.log(`Created new room ${roomId}`);
         }
 
         // Set username and color
@@ -277,7 +281,7 @@ io.on('connection', (socket) => {
         });
 
         // Send recent messages
-        console.log('Sending recent messages:', room.messages);
+        console.log(`Sending ${room.messages.length} recent messages to ${username} in room ${roomId}`);
         socket.emit('recent-messages', room.messages);
 
         // Broadcast to others
@@ -291,13 +295,13 @@ io.on('connection', (socket) => {
     // Handle chat messages
     socket.on('chat-message', (message) => {
         if (!currentRoom || !username) {
-            console.log('Message rejected: no room or username');
+            console.log(`Message rejected from ${socket.id}: no room or username`);
             return;
         }
 
         const room = rooms.get(currentRoom);
         if (!room) {
-            console.log('Message rejected: room not found');
+            console.log(`Message rejected from ${socket.id}: room ${currentRoom} not found`);
             return;
         }
 
@@ -308,7 +312,7 @@ io.on('connection', (socket) => {
             timestamp: new Date().toISOString()
         };
 
-        console.log('Broadcasting message:', messageData);
+        console.log(`Broadcasting message in room ${currentRoom} from ${username}:`, messageData);
 
         // Store message in room history
         room.messages.push(messageData);
@@ -322,12 +326,14 @@ io.on('connection', (socket) => {
 
     // Handle disconnection
     socket.on('disconnect', () => {
+        console.log(`Socket ${socket.id} disconnected`);
         if (currentRoom) {
             const room = rooms.get(currentRoom);
             if (room) {
                 if (room.hostId === socket.id) {
                     room.hostId = null;
                     room.hostName = null;
+                    console.log(`Host left room ${currentRoom}`);
                 }
                 room.users.delete(socket.id);
                 room.colors.delete(socket.id);

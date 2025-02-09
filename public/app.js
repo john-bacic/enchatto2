@@ -1,7 +1,8 @@
 const socket = io({
     reconnection: true,
     reconnectionAttempts: 5,
-    reconnectionDelay: 1000
+    reconnectionDelay: 1000,
+    transports: ['websocket', 'polling']
 });
 
 let currentRoom = null;
@@ -10,7 +11,8 @@ let userColor = null;
 let isHost = false;
 
 // Get room ID from URL
-const roomId = window.location.pathname.split('/').pop();
+const roomId = window.location.pathname.replace(/^\/+/, '').replace(/\/+$/, '');
+console.log('Room ID:', roomId);
 
 // DOM Elements
 const welcomeScreen = document.getElementById('welcome-screen');
@@ -27,8 +29,8 @@ const guestNameInput = document.getElementById('guest-name');
 // Function to send message
 function sendMessage() {
     const messageText = messageInput.value.trim();
-    if (messageText) {
-        // Send message directly, no need for roomId as server knows it
+    if (messageText && roomId) {
+        console.log('Sending message in room:', roomId, messageText);
         socket.emit('chat-message', messageText);
         messageInput.value = '';
     }
@@ -105,7 +107,16 @@ function updateButtonColor(color) {
 
 // Socket events
 socket.on('connect', () => {
-    console.log('Connected to server');
+    console.log('Connected to server, socket id:', socket.id);
+    // Re-join room after reconnection if we have a roomId
+    if (roomId) {
+        const isGuestPrompt = document.getElementById('guest-name-prompt');
+        const isGuest = isGuestPrompt && isGuestPrompt.style.display !== 'none';
+        if (!isGuest) {
+            console.log('Rejoining as host');
+            socket.emit('join-room', roomId, true);
+        }
+    }
 });
 
 socket.on('disconnect', () => {
@@ -117,6 +128,7 @@ socket.on('connect_error', (error) => {
 });
 
 socket.on('username-assigned', (data) => {
+    console.log('Username assigned:', data);
     username = data.username;
     userColor = data.color;
     isHost = data.isHost;
@@ -125,7 +137,6 @@ socket.on('username-assigned', (data) => {
     const sendButton = document.getElementById('send-button');
     if (sendButton) {
         sendButton.style.backgroundColor = userColor;
-        console.log('Set button color to:', userColor); // Debug log
     }
     
     // Update welcome message with user's color
@@ -156,7 +167,7 @@ socket.on('room-joined', (roomId) => {
 });
 
 socket.on('chat-message', (data) => {
-    console.log('Received message:', data); // Debug log
+    console.log('Received message:', data);
     const messageElement = document.createElement('div');
     messageElement.className = 'message';
     
@@ -166,7 +177,6 @@ socket.on('chat-message', (data) => {
         const sendButton = document.getElementById('send-button');
         if (sendButton) {
             sendButton.style.backgroundColor = data.color;
-            console.log('Updated button color to:', data.color); // Debug log
         }
     }
     
@@ -225,6 +235,7 @@ function joinAsGuest() {
     const guestName = guestNameInput.value.trim() || `Guest ${Math.floor(Math.random() * 1000)}`;
     const storedInfo = getGuestInfo(guestName);
     
+    console.log('Joining as guest:', guestName, 'in room:', roomId);
     // Join room with stored color if available
     socket.emit('join-room', roomId, false, guestName, storedInfo?.color);
     
@@ -252,10 +263,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const isGuestPrompt = document.getElementById('guest-name-prompt');
     if (isGuestPrompt && isGuestPrompt.style.display !== 'none') {
         // We're on the guest prompt screen
-        console.log('Initializing as guest prompt');
+        console.log('Initializing as guest prompt for room:', roomId);
     } else {
         // We're on the host screen
-        console.log('Initializing as host');
+        console.log('Initializing as host for room:', roomId);
         socket.emit('join-room', roomId, true);
     }
 });
