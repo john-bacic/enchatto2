@@ -112,36 +112,44 @@ app.get('/room/:roomId', async (req, res) => {
 });
 
 // API route for room info
-app.get('/api/room/:roomId', (req, res) => {
+app.get('/api/room/:roomId', async (req, res) => {
     const roomId = req.params.roomId;
     const isHost = req.query.host === 'true';
-    console.log('API request for room:', roomId, 'Host:', isHost);
     
-    // Validate room ID
-    if (!roomId.match(/^\d{6}$/)) {
-        console.log('Invalid room number format in API request:', roomId);
-        res.status(400).json({ error: 'Invalid room number format' });
-        return;
-    }
-    
-    const room = rooms.get(roomId);
+    // Get or create room
+    let room = rooms.get(roomId);
     if (!room) {
-        console.log('Room not found:', roomId);
-        res.status(404).json({ error: 'Room not found' });
-        return;
+        if (!isHost) {
+            return res.status(404).json({ error: 'Room not found' });
+        }
+        // Create new room if host is joining
+        room = {
+            hostId: null,
+            hostName: null,
+            guestCount: 0,
+            messages: [],
+            users: new Map(),
+            colors: new Map()
+        };
+        rooms.set(roomId, room);
+
+        // Generate QR code for the room
+        const roomUrl = `${req.protocol}://${req.get('host')}/room/${roomId}`;
+        try {
+            const qrCode = await QRCode.toDataURL(roomUrl, {
+                errorCorrectionLevel: 'H',
+                margin: 1,
+                width: 200
+            });
+            room.qrCode = qrCode;
+        } catch (error) {
+            console.error('Error generating QR code:', error);
+        }
     }
     
-    // If someone is trying to be host but there's already a host
-    if (isHost && room.hostId !== null) {
-        res.status(403).json({ error: 'Room already has a host' });
-        return;
-    }
-    
-    console.log('Sending room data');
-    res.json({
-        roomId,
-        qrCode: room.qrCode,
-        isHost
+    res.json({ 
+        success: true,
+        qrCode: room.qrCode
     });
 });
 
@@ -234,21 +242,25 @@ io.on('connection', (socket) => {
             return;
         }
         
-        // Check if trying to join as host when room already has one
-        if (isHost && room.hostId !== null && room.hostId !== socket.id) {
-            socket.emit('error', 'Room already has a host');
-            return;
-        }
-        
         // Reset user state before joining new room
         username = null;
         userColor = null;
         
         // Set new username based on host/guest status
         if (isHost) {
-            username = storedName || 'Host';
-            userColor = HOST_COLOR; // Always use HOST_COLOR for host
-            room.hostId = socket.id;
+            // If this is the original host (based on stored name), let them rejoin as host
+            const isOriginalHost = storedName === room.hostName;
+            if (room.hostId === null || isOriginalHost) {
+                username = storedName || 'Host';
+                userColor = HOST_COLOR;
+                room.hostId = socket.id;
+                room.hostName = storedName; // Store host name for future checks
+            } else {
+                // If someone else is host, join as guest
+                username = storedName || `Guest ${room.guestCount + 1}`;
+                userColor = storedColor || generateColor();
+                room.guestCount++;
+            }
         } else {
             username = storedName || `Guest ${room.guestCount + 1}`;
             userColor = storedColor || generateColor();
@@ -262,7 +274,8 @@ io.on('connection', (socket) => {
         // Send username and color to the client
         socket.emit('username-assigned', {
             username,
-            color: userColor
+            color: userColor,
+            isHost: username === room.hostName // Tell client if they're the host
         });
 
         // Notify others

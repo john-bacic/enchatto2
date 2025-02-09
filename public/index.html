@@ -77,7 +77,7 @@
         let username = null;
         let userColor = null;
         const urlParams = new URLSearchParams(window.location.search);
-        const isHost = urlParams.get('host') === 'true';
+        let isHost = urlParams.get('host') === 'true';
         const roomId = window.location.pathname.split('/').pop();
         
         // Load stored names from localStorage
@@ -238,24 +238,15 @@
                     const response = await fetch(`/api/room/${roomId}?host=${isHost}`);
                     if (!response.ok) {
                         const error = await response.json();
-                        if (error.error === 'Room already has a host') {
-                            alert('This room already has a host. You will join as a guest.');
-                            window.location.href = `/room/${roomId}`;
-                            return;
-                        }
                         throw new Error(error.error || 'Failed to join room');
                     }
                     
                     const data = await response.json();
                     
-                    if (data.qrCode) {
-                        const qrCodeElement = document.getElementById('qr-code');
-                        qrCodeElement.innerHTML = `<img src="${data.qrCode}" alt="QR Code">`;
+                    // Show QR code if we're the host
+                    if (isHost) {
+                        document.getElementById('qr-code').style.display = 'block';
                     }
-                    
-                    document.getElementById('room-id').textContent = roomId;
-                    const shareUrl = `${window.location.origin}/room/${roomId}`;
-                    document.getElementById('join-url').textContent = shareUrl;
                     
                     // Get the appropriate stored info
                     let storedName, storedColor;
@@ -267,9 +258,31 @@
                         storedName = guestName;
                         storedColor = guestInfo ? guestInfo.color : null;
                     }
+
+                    // Update room info display
+                    document.getElementById('room-id').textContent = roomId;
+                    const shareUrl = `${window.location.origin}/room/${roomId}`;
+                    document.getElementById('join-url').textContent = shareUrl;
                     
-                    // Join room with stored info
-                    socket.emit('join-room', roomId, isHost, storedName || (isHost ? 'Host' : ''), storedColor);
+                    // Join room
+                    socket.emit('join-room', roomId, isHost, storedName, storedColor);
+                    
+                    // Hide welcome screen and show chat
+                    document.querySelector('.welcome-screen').style.display = 'none';
+                    document.querySelector('.chat-container').style.display = 'flex';
+                    
+                    // Focus input
+                    document.getElementById('message-text').focus();
+                    
+                    // If we're host, fetch and display QR code
+                    if (isHost) {
+                        const qrResponse = await fetch(`/api/room/${roomId}?host=true`);
+                        const qrData = await qrResponse.json();
+                        if (qrData.qrCode) {
+                            const qrCodeElement = document.getElementById('qr-code');
+                            qrCodeElement.innerHTML = `<img src="${qrData.qrCode}" alt="QR Code">`;
+                        }
+                    }
                     
                 } catch (error) {
                     console.error('Error initializing room:', error);
@@ -390,6 +403,8 @@
         socket.on('username-assigned', (data) => {
             username = data.username;
             userColor = data.color;
+            isHost = data.isHost; // Update host status
+            
             const welcomeMessage = document.getElementById('welcome-message');
             if (welcomeMessage) {
                 welcomeMessage.innerHTML = `You joined as: <span style="color: ${userColor}">${username}</span>`;
@@ -500,6 +515,24 @@
                 console.error('Failed to copy:', err);
             });
         }
+        
+        socket.on('error', (message) => {
+            if (message !== 'Room not found') {
+                alert(message);
+            }
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            // Try to reconnect
+            socket.connect();
+        });
+
+        socket.on('reconnect', () => {
+            console.log('Reconnected to server');
+            // Rejoin room with stored info
+            socket.emit('join-room', roomId, isHost, storedName, storedColor);
+        });
     </script>
 </body>
 </html>
