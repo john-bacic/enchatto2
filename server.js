@@ -45,6 +45,18 @@ function generateColor() {
     return GUEST_COLORS[Math.floor(Math.random() * GUEST_COLORS.length)];
 }
 
+// Function to create a new room
+function createRoom(roomId) {
+    return {
+        hostId: null,
+        hostName: null,
+        guestCount: 0,
+        messages: [],
+        users: new Map(),
+        colors: new Map()
+    };
+}
+
 // Root route - host page
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -121,14 +133,7 @@ app.get('/api/room/:roomId', async (req, res) => {
             return res.status(404).json({ error: 'Room not found' });
         }
         // Create new room if host is joining
-        room = {
-            hostId: null,
-            hostName: null,
-            guestCount: 0,
-            messages: [],
-            users: new Map(),
-            colors: new Map()
-        };
+        room = createRoom(roomId);
         rooms.set(roomId, room);
 
         // Generate QR code for the room
@@ -226,134 +231,100 @@ io.on('connection', (socket) => {
     let userColor = null;
 
     socket.on('join-room', (roomId, isHost, storedName, storedColor) => {
-        console.log('User joining room:', roomId, 'as host:', isHost);
-        
         // Leave current room if any
         if (currentRoom) {
-            leaveCurrentRoom();
+            socket.leave(currentRoom);
         }
-        
+
         // Get or create room
         let room = rooms.get(roomId);
         if (!room) {
-            room = {
-                hostId: null,
-                hostName: null,
-                guestCount: 0,
-                messages: [],
-                users: new Map(),
-                colors: new Map()
-            };
+            room = createRoom(roomId);
             rooms.set(roomId, room);
         }
-        
-        // Set username and color based on host/guest status
+
+        // Set username and color
         if (isHost) {
-            // If this is the original host, let them rejoin as host
-            const isOriginalHost = storedName === room.hostName;
-            if (room.hostId === null || isOriginalHost) {
-                username = storedName || 'Host';
-                userColor = HOST_COLOR;  // Always blue for host
-                room.hostId = socket.id;
-                room.hostName = username;
-            } else {
-                // If someone else is host, join as guest
-                username = storedName || `Guest ${room.guestCount + 1}`;
-                userColor = storedColor;
-                room.guestCount++;
-            }
+            username = storedName || 'Host';
+            userColor = HOST_COLOR;  // Always blue for host
+            room.hostId = socket.id;
+            room.hostName = username;
+            console.log('Host joined:', username, 'with color:', userColor);
         } else {
-            // Guest color handling
             username = storedName || `Guest ${room.guestCount + 1}`;
             userColor = storedColor || generateColor();
             room.guestCount++;
+            console.log('Guest joined:', username, 'with color:', userColor);
         }
 
-        // Join the room
+        // Join room and store user data
         socket.join(roomId);
         currentRoom = roomId;
-        
-        // Store user info
+        room.users.set(socket.id, { username, color: userColor });
         room.colors.set(socket.id, userColor);
-        
-        console.log('Emitting username-assigned:', { username, color: userColor, isHost });
-        
-        // Send username and color to the client
-        socket.emit('username-assigned', {
-            username: username,
-            color: userColor,
-            isHost: isHost
-        });
 
-        // Notify others
-        socket.to(roomId).emit('user-joined', {
-            username: username,
+        // Send user info to client
+        socket.emit('username-assigned', {
+            username,
             color: userColor,
-            isHost: isHost
+            isHost
         });
 
         // Send recent messages
         const recentMessages = room.messages.slice(-50);
         socket.emit('recent-messages', recentMessages);
+
+        // Broadcast to others
+        socket.to(roomId).emit('user-joined', {
+            username,
+            color: userColor,
+            isHost
+        });
     });
 
-    socket.on('set-username', (roomId, requestedUsername) => {
-        if (roomId && rooms.get(roomId)) {
-            const room = rooms.get(roomId);
-            username = requestedUsername;
-            userColor = room.colors.get(socket.id);
-            room.users.set(socket.id, { username, color: userColor });
-            
-            // Update user list for all clients in the room
-            io.to(roomId).emit('user-list-update', Array.from(room.users.values()));
-        }
-    });
-
+    // Handle chat messages
     socket.on('chat-message', (message) => {
-        if (!currentRoom) return;
-        
+        if (!currentRoom || !username) {
+            console.log('Message rejected: no room or username');
+            return;
+        }
+
         const room = rooms.get(currentRoom);
-        if (!room) return;
-        
+        if (!room) {
+            console.log('Message rejected: room not found');
+            return;
+        }
+
         const messageData = {
-            username: username,
+            username,
             message: message,
             color: userColor,
             timestamp: new Date().toISOString()
         };
-        
-        // Store message
+
+        console.log('Broadcasting message:', messageData);
+
+        // Store message in room history
         room.messages.push(messageData);
         if (room.messages.length > 100) {
             room.messages.shift();
         }
-        
-        // Broadcast to room
+
+        // Broadcast to everyone in the room
         io.to(currentRoom).emit('chat-message', messageData);
     });
-    
+
+    // Handle disconnection
     socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
-        
         if (currentRoom) {
             const room = rooms.get(currentRoom);
-            if (room && room.users.has(socket.id)) {
-                const user = room.users.get(socket.id);
-                
-                // If disconnecting user was host, clear host ID
+            if (room) {
                 if (room.hostId === socket.id) {
                     room.hostId = null;
+                    room.hostName = null;
                 }
-                
                 room.users.delete(socket.id);
                 room.colors.delete(socket.id);
-                
-                if (user) {
-                    socket.to(currentRoom).emit('user-left', { 
-                        username: user.username, 
-                        color: user.color 
-                    });
-                }
             }
         }
     });

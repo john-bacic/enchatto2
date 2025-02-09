@@ -1,8 +1,11 @@
 const socket = io();
 let currentRoom = null;
 let username = null;
-let userColor = null; // Removed default color
+let userColor = null; 
 let isHost = false;
+
+// Get room ID from URL
+const roomId = window.location.pathname.split('/').pop();
 
 // DOM Elements
 const welcomeScreen = document.getElementById('welcome-screen');
@@ -16,12 +19,12 @@ const sendBtn = document.getElementById('send-btn');
 const chatMessages = document.getElementById('chat-messages');
 const guestNameInput = document.getElementById('guest-name');
 
-// Function to update send button color
-function updateSendButtonColor(color) {
-    const sendButton = document.querySelector('.send-button');
-    if (sendButton) {
-        sendButton.style.backgroundColor = color;
-        console.log('Updated button color to:', color);
+// Function to send message
+function sendMessage() {
+    const messageText = messageInput.value.trim();
+    if (messageText && currentRoom) {
+        socket.emit('chat-message', currentRoom, messageText);
+        messageInput.value = '';
     }
 }
 
@@ -45,14 +48,6 @@ messageInput.addEventListener('keypress', (e) => {
 });
 
 sendBtn.addEventListener('click', sendMessage);
-
-function sendMessage() {
-    const message = messageInput.value.trim();
-    if (message && currentRoom) {
-        socket.emit('chat-message', currentRoom, message);
-        messageInput.value = '';
-    }
-}
 
 // Initialize guest name input color and observer
 if (guestNameInput) {
@@ -143,8 +138,10 @@ socket.on('room-joined', (roomId) => {
 });
 
 socket.on('chat-message', (data) => {
+    console.log('Received message:', data); // Debug log
     const messageElement = document.createElement('div');
     messageElement.className = 'message';
+    
     if (data.username === username) {
         messageElement.classList.add('own-message');
         // Update send button color to match our username color
@@ -160,6 +157,7 @@ socket.on('chat-message', (data) => {
         <div class="message-content">${data.message}</div>
         <span class="timestamp">${formatTimestamp(data.timestamp)}</span>
     `;
+    
     chatMessages.appendChild(messageElement);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 });
