@@ -1,4 +1,9 @@
-const socket = io();
+const socket = io({
+    reconnection: true,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000
+});
+
 let currentRoom = null;
 let username = null;
 let userColor = null; 
@@ -99,6 +104,18 @@ function updateButtonColor(color) {
 }
 
 // Socket events
+socket.on('connect', () => {
+    console.log('Connected to server');
+});
+
+socket.on('disconnect', () => {
+    console.log('Disconnected from server');
+});
+
+socket.on('connect_error', (error) => {
+    console.error('Connection error:', error);
+});
+
 socket.on('username-assigned', (data) => {
     username = data.username;
     userColor = data.color;

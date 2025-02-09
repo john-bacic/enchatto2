@@ -1,7 +1,12 @@
 const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
-const io = require('socket.io')(http);
+const io = require('socket.io')(http, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 const path = require('path');
 const QRCode = require('qrcode');
 const OpenAI = require('openai');
@@ -13,6 +18,7 @@ const openai = new OpenAI({
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
 
 // Constants
 const HOST_COLOR = '#1877f2';  // Facebook blue for host
