@@ -271,8 +271,8 @@ io.on('connection', (socket) => {
         });
 
         // Send recent messages
-        const recentMessages = room.messages.slice(-50);
-        socket.emit('recent-messages', recentMessages);
+        console.log('Sending recent messages:', room.messages);
+        socket.emit('recent-messages', room.messages);
 
         // Broadcast to others
         socket.to(roomId).emit('user-joined', {

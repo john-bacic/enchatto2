@@ -22,8 +22,9 @@ const guestNameInput = document.getElementById('guest-name');
 // Function to send message
 function sendMessage() {
     const messageText = messageInput.value.trim();
-    if (messageText && currentRoom) {
-        socket.emit('chat-message', currentRoom, messageText);
+    if (messageText) {
+        // Send message directly, no need for roomId as server knows it
+        socket.emit('chat-message', messageText);
         messageInput.value = '';
     }
 }
@@ -174,6 +175,32 @@ socket.on('user-left', (data) => {
     messageElement.classList.add('system-message');
     messageElement.innerHTML = `<span style="color: ${data.color}">${data.username}</span> left the room`;
     chatMessages.appendChild(messageElement);
+});
+
+socket.on('recent-messages', (messages) => {
+    console.log('Received recent messages:', messages);
+    // Clear existing messages
+    chatMessages.innerHTML = '';
+    
+    // Add each message to the chat
+    messages.forEach(data => {
+        const messageElement = document.createElement('div');
+        messageElement.className = 'message';
+        if (data.username === username) {
+            messageElement.classList.add('own-message');
+        }
+        
+        messageElement.innerHTML = `
+            <span style="color: ${data.color}">${data.username}</span>
+            <div class="message-content">${data.message}</div>
+            <span class="timestamp">${formatTimestamp(data.timestamp)}</span>
+        `;
+        
+        chatMessages.appendChild(messageElement);
+    });
+    
+    // Scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 });
 
 // Function to join as guest
