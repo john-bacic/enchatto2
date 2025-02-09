@@ -1,6 +1,8 @@
 const socket = io();
 let currentRoom = null;
 let username = null;
+let userColor = null; // Removed default color
+let isHost = false;
 
 // DOM Elements
 const welcomeScreen = document.getElementById('welcome-screen');
@@ -12,6 +14,16 @@ const roomNumber = document.getElementById('room-number');
 const messageInput = document.getElementById('message-input');
 const sendBtn = document.getElementById('send-btn');
 const chatMessages = document.getElementById('chat-messages');
+const guestNameInput = document.getElementById('guest-name');
+
+// Function to update send button color
+function updateSendButtonColor(color) {
+    const sendButton = document.querySelector('.send-button');
+    if (sendButton) {
+        sendButton.style.backgroundColor = color;
+        console.log('Updated button color to:', color);
+    }
+}
 
 // Event Listeners
 createRoomBtn.addEventListener('click', () => {
@@ -42,7 +54,80 @@ function sendMessage() {
     }
 }
 
+// Initialize guest name input color and observer
+if (guestNameInput) {
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                const borderColor = guestNameInput.style.borderColor;
+                if (borderColor) {
+                    guestNameInput.style.color = borderColor;
+                }
+            }
+        });
+    });
+
+    observer.observe(guestNameInput, {
+        attributes: true,
+        attributeFilter: ['style']
+    });
+}
+
+// Function to update guest input colors
+function updateGuestInputColors(color) {
+    if (guestNameInput) {
+        if (color) {
+            guestNameInput.style.borderColor = color;
+            guestNameInput.style.color = color;
+        } else {
+            const currentBorderColor = guestNameInput.style.borderColor;
+            if (currentBorderColor) {
+                guestNameInput.style.color = currentBorderColor;
+            }
+        }
+    }
+}
+
+// Function to convert hex to RGB
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : null;
+}
+
+// Function to update button color
+function updateButtonColor(color) {
+    const sendButton = document.querySelector('.send-button');
+    if (sendButton) {
+        sendButton.style.backgroundColor = color;
+    }
+}
+
 // Socket events
+socket.on('username-assigned', (data) => {
+    username = data.username;
+    userColor = data.color;
+    isHost = data.isHost;
+    
+    // Update send button color to match username color
+    const sendButton = document.getElementById('send-button');
+    if (sendButton) {
+        sendButton.style.backgroundColor = userColor;
+        console.log('Set button color to:', userColor); // Debug log
+    }
+    
+    // Update welcome message with user's color
+    const welcomeMessage = document.getElementById('welcome-message');
+    if (welcomeMessage) {
+        welcomeMessage.innerHTML = `Welcome, <span style="color: ${userColor}">${username}</span>!`;
+    }
+    
+    // If this is a guest, also update the input border and text color
+    if (!isHost && guestNameInput) {
+        guestNameInput.style.borderColor = userColor;
+        guestNameInput.style.color = userColor;
+    }
+});
+
 socket.on('room-created', (roomId) => {
     currentRoom = roomId;
     roomNumber.textContent = roomId;
@@ -57,27 +142,115 @@ socket.on('room-joined', (roomId) => {
     chatScreen.style.display = 'block';
 });
 
-socket.on('chat-message', (username, message) => {
+socket.on('chat-message', (data) => {
     const messageElement = document.createElement('div');
-    messageElement.classList.add('message');
+    messageElement.className = 'message';
+    if (data.username === username) {
+        messageElement.classList.add('own-message');
+        // Update send button color to match our username color
+        const sendButton = document.getElementById('send-button');
+        if (sendButton) {
+            sendButton.style.backgroundColor = data.color;
+            console.log('Updated button color to:', data.color); // Debug log
+        }
+    }
+    
     messageElement.innerHTML = `
-        <span class="username">${username}</span>
-        <span class="message-text">${message}</span>
+        <span style="color: ${data.color}">${data.username}</span>
+        <div class="message-content">${data.message}</div>
+        <span class="timestamp">${formatTimestamp(data.timestamp)}</span>
     `;
     chatMessages.appendChild(messageElement);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 });
 
-socket.on('user-joined', (username) => {
+socket.on('user-joined', (data) => {
     const messageElement = document.createElement('div');
     messageElement.classList.add('system-message');
-    messageElement.textContent = `${username} joined the room`;
+    messageElement.innerHTML = `<span style="color: ${data.color}">${data.username}</span> joined the room`;
     chatMessages.appendChild(messageElement);
 });
 
-socket.on('user-left', (username) => {
+socket.on('user-left', (data) => {
     const messageElement = document.createElement('div');
     messageElement.classList.add('system-message');
-    messageElement.textContent = `${username} left the room`;
+    messageElement.innerHTML = `<span style="color: ${data.color}">${data.username}</span> left the room`;
     chatMessages.appendChild(messageElement);
 });
+
+// Function to join as guest
+function joinAsGuest() {
+    const guestName = guestNameInput.value.trim() || `Guest ${Math.floor(Math.random() * 1000)}`;
+    const storedInfo = getGuestInfo(guestName);
+    
+    // Join room with stored color if available
+    socket.emit('join-room', roomId, false, guestName, storedInfo?.color);
+    
+    // Hide prompt and show chat
+    document.getElementById('guest-name-prompt').style.display = 'none';
+    document.getElementById('chat-container').style.display = 'flex';
+}
+
+// Function to handle selecting a previous guest
+function selectPreviousGuest() {
+    const select = document.getElementById('previous-guests');
+    const selectedName = select.value;
+    
+    if (selectedName && guestNameInput) {
+        guestNameInput.value = selectedName;
+        const info = getGuestInfo(selectedName);
+        if (info && info.color) {
+            socket.emit('join-room', roomId, false, selectedName, info.color);
+        }
+    }
+}
+
+// Initialize as host on page load
+document.addEventListener('DOMContentLoaded', () => {
+    const isGuestPrompt = document.getElementById('guest-name-prompt');
+    if (isGuestPrompt && isGuestPrompt.style.display !== 'none') {
+        // We're on the guest prompt screen
+        console.log('Initializing as guest prompt');
+    } else {
+        // We're on the host screen
+        console.log('Initializing as host');
+        socket.emit('join-room', roomId, true);
+    }
+});
+
+// Helper function to store guest info
+function storeGuestInfo(name, color) {
+    const guestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
+    guestInfo[name] = { color, lastUsed: new Date().toISOString() };
+    localStorage.setItem('chatGuestInfo', JSON.stringify(guestInfo));
+    updateGuestSelect();
+    updateGuestInputColors(color);
+}
+
+// Function to update guest select
+function updateGuestSelect() {
+    const select = document.getElementById('previous-guests');
+    const guestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
+    const options = Object.keys(guestInfo).sort((a, b) => {
+        return new Date(guestInfo[b].lastUsed) - new Date(guestInfo[a].lastUsed);
+    }).map((name) => {
+        return `<option value="${name}">${name}</option>`;
+    });
+    select.innerHTML = options.join('');
+}
+
+// Initialize button color on page load
+document.addEventListener('DOMContentLoaded', () => {
+    // Removed default color assignment
+});
+
+// Helper functions
+function formatTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function getGuestInfo(name) {
+    const guestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
+    return guestInfo[name];
+}

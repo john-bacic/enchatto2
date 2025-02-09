@@ -14,6 +14,24 @@ const openai = new OpenAI({
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Constants
+const HOST_COLOR = '#1877f2';  // Facebook blue for host
+const GUEST_COLORS = [
+    '#FF6B6B', // Coral Red
+    '#4ECDC4', // Turquoise
+    '#96CEB4', // Sage Green
+    '#D4A5A5', // Dusty Rose
+    '#9B59B6', // Purple
+    '#E67E22', // Orange
+    '#27AE60', // Green
+    '#F1C40F', // Yellow
+    '#E74C3C', // Red
+    '#16A085', // Teal
+    '#3F5C78', // Bright Blue
+    '#8E44AD', // Violet
+    '#F39C12'  // Dark Orange
+];
+
 // Store rooms
 const rooms = new Map();
 
@@ -22,30 +40,10 @@ function generateRoomNumber() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Generate random color
+// Function to generate a random color for guests
 function generateColor() {
-    // List of pleasant, distinct colors for guests
-    const colors = [
-        '#FF6B6B', // Coral Red
-        '#4ECDC4', // Turquoise
-        '#96CEB4', // Sage Green
-        '#FFEEAD', // Cream Yellow
-        '#D4A5A5', // Dusty Rose
-        '#9B59B6', // Purple
-        '#E67E22', // Orange
-        '#27AE60', // Green
-        '#F1C40F', // Yellow
-        '#E74C3C', // Red
-        '#16A085', // Teal
-        '#3F5C78', // bright blue
-        '#8E44AD', // Violet
-        '#F39C12'  // Dark Orange
-    ];
-    return colors[Math.floor(Math.random() * colors.length)];
+    return GUEST_COLORS[Math.floor(Math.random() * GUEST_COLORS.length)];
 }
-
-// Host color is always this blue
-const HOST_COLOR = '#1877f2';
 
 // Root route - host page
 app.get('/', (req, res) => {
@@ -228,7 +226,7 @@ io.on('connection', (socket) => {
     let userColor = null;
 
     socket.on('join-room', (roomId, isHost, storedName, storedColor) => {
-        console.log('User joining room:', roomId, 'as host:', isHost, 'with stored name:', storedName, 'color:', storedColor);
+        console.log('User joining room:', roomId, 'as host:', isHost);
         
         // Leave current room if any
         if (currentRoom) {
@@ -236,32 +234,36 @@ io.on('connection', (socket) => {
         }
         
         // Get or create room
-        const room = rooms.get(roomId);
+        let room = rooms.get(roomId);
         if (!room) {
-            socket.emit('error', 'Room not found');
-            return;
+            room = {
+                hostId: null,
+                hostName: null,
+                guestCount: 0,
+                messages: [],
+                users: new Map(),
+                colors: new Map()
+            };
+            rooms.set(roomId, room);
         }
         
-        // Reset user state before joining new room
-        username = null;
-        userColor = null;
-        
-        // Set new username based on host/guest status
+        // Set username and color based on host/guest status
         if (isHost) {
-            // If this is the original host (based on stored name), let them rejoin as host
+            // If this is the original host, let them rejoin as host
             const isOriginalHost = storedName === room.hostName;
             if (room.hostId === null || isOriginalHost) {
                 username = storedName || 'Host';
-                userColor = HOST_COLOR;
+                userColor = HOST_COLOR;  // Always blue for host
                 room.hostId = socket.id;
-                room.hostName = storedName; // Store host name for future checks
+                room.hostName = username;
             } else {
                 // If someone else is host, join as guest
                 username = storedName || `Guest ${room.guestCount + 1}`;
-                userColor = storedColor || generateColor();
+                userColor = storedColor;
                 room.guestCount++;
             }
         } else {
+            // Guest color handling
             username = storedName || `Guest ${room.guestCount + 1}`;
             userColor = storedColor || generateColor();
             room.guestCount++;
@@ -270,16 +272,25 @@ io.on('connection', (socket) => {
         // Join the room
         socket.join(roomId);
         currentRoom = roomId;
-
+        
+        // Store user info
+        room.colors.set(socket.id, userColor);
+        
+        console.log('Emitting username-assigned:', { username, color: userColor, isHost });
+        
         // Send username and color to the client
         socket.emit('username-assigned', {
-            username,
+            username: username,
             color: userColor,
-            isHost: username === room.hostName // Tell client if they're the host
+            isHost: isHost
         });
 
         // Notify others
-        socket.to(roomId).emit('user-joined', { username, color: userColor });
+        socket.to(roomId).emit('user-joined', {
+            username: username,
+            color: userColor,
+            isHost: isHost
+        });
 
         // Send recent messages
         const recentMessages = room.messages.slice(-50);
@@ -290,7 +301,7 @@ io.on('connection', (socket) => {
         if (roomId && rooms.get(roomId)) {
             const room = rooms.get(roomId);
             username = requestedUsername;
-            userColor = room.users.get(socket.id)?.color || generateColor();
+            userColor = room.colors.get(socket.id);
             room.users.set(socket.id, { username, color: userColor });
             
             // Update user list for all clients in the room
@@ -298,55 +309,27 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('chat-message', async (roomId, message) => {
-        if (!currentRoom || !username) return;
+    socket.on('chat-message', (message) => {
+        if (!currentRoom) return;
         
-        const room = rooms.get(roomId);
+        const room = rooms.get(currentRoom);
         if (!room) return;
-
-        // Detect the language of the message
-        const detectedLang = await detectLanguage(message);
         
-        // Initialize translation object
-        const translations = {
-            original: message,
-            translated: null,
-            sourceLang: detectedLang,
-            targetLang: null
-        };
-
-        // Translate if the message is in English or Japanese
-        if (detectedLang === 'en' || detectedLang === 'ja') {
-            const targetLang = detectedLang === 'en' ? 'ja' : 'en';
-            translations.translated = await translateText(message, targetLang);
-            translations.targetLang = targetLang;
-        }
-
-        // Add message to room history
-        room.messages.push({
-            username,
-            message: translations.original,
-            translation: translations.translated,
-            sourceLang: translations.sourceLang,
-            targetLang: translations.targetLang,
+        const messageData = {
+            username: username,
+            message: message,
             color: userColor,
-            timestamp: new Date()
-        });
-
-        // Trim message history if needed
+            timestamp: new Date().toISOString()
+        };
+        
+        // Store message
+        room.messages.push(messageData);
         if (room.messages.length > 100) {
-            room.messages = room.messages.slice(-100);
+            room.messages.shift();
         }
-
-        // Broadcast message to all users in the room
-        io.to(roomId).emit('chat-message', {
-            username,
-            message: translations.original,
-            translation: translations.translated,
-            sourceLang: translations.sourceLang,
-            targetLang: translations.targetLang,
-            color: userColor
-        });
+        
+        // Broadcast to room
+        io.to(currentRoom).emit('chat-message', messageData);
     });
     
     socket.on('disconnect', () => {
