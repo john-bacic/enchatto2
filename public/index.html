@@ -62,9 +62,9 @@
         <div class="message-input-container">
             <div class="message-input">
                 <input type="text" id="message-text" placeholder="Type your message..." autocomplete="off">
-                <button onclick="sendMessage()" class="send-button" id="send-button">
-                    <svg viewBox="0 0 18 18">
-                        <path d="M9 5.5L14.5 14H3z"/>
+                <button onclick="sendMessage()" class="send-button">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
                     </svg>
                 </button>
             </div>
@@ -418,12 +418,6 @@
                 if (guestNameInput) {
                     guestNameInput.style.borderColor = userColor;
                 }
-            }
-            
-            // Update send button color
-            const sendButton = document.getElementById('send-button');
-            if (sendButton) {
-                sendButton.style.background = userColor;
             }
         });
         

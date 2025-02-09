@@ -23,13 +23,9 @@
     --color-message-border: #ffffff1a;
     --color-message-own-border: #ffffff26;
 
-    /* User colors */
-    --color-host: #1877f2;
-    --color-guest: #e74c3c;
-
-    /* Send button - will be dynamically set from server */
-    --color-send-button: var(--color-host);
-    --color-send-button-hover: color-mix(in srgb, var(--color-send-button) 80%, transparent);
+    /* Send button */
+    --color-send-button: #1877f2;
+    --color-send-button-hover: #1877f2cc;
 }
 
 * {
@@ -137,7 +133,7 @@ body {
 
 .host-button:hover,
 .guest-button:hover {
-    background: var(--color-send-button-hover);
+    background: #0d6efd;
 }
 
 .host-button:active,
@@ -146,7 +142,7 @@ body {
 }
 
 .host-button {
-    background: var(--color-host);
+    background: var(--color-send-button);
     color: var(--color-text);
     border: none;
     padding: 16px 32px;
@@ -303,27 +299,6 @@ body {
     color: var(--color-send-button);
 }
 
-.guest-name-input {
-    padding: 12px 20px;
-    font-size: 16px;
-    border: 2px solid;
-    border-radius: 8px;
-    width: 300px;
-    max-width: 90%;
-    outline: none;
-    transition: border-color 0.3s ease, color 0.3s ease;
-    background: var(--color-bg-light);
-}
-
-.guest-name-input:focus {
-    box-shadow: 0 0 0 2px var(--color-primary-light);
-}
-
-.guest-name-input::placeholder {
-    color: var(--color-text-subtle);
-    opacity: 0.7;
-}
-
 .chat-container {
     position: fixed;
     top: 0;
@@ -428,10 +403,10 @@ body {
     text-align: center;
     padding: 10px;
     margin: 8px 20px;
-    background: var(--color-bg-dark);
+    background: blue;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
-    color: var(--color-text-muted);
+    color: #a0a0a0;
     font-style: italic;
     opacity: 1;
     transition: opacity 0.5s ease, transform 0.5s ease;
@@ -441,16 +416,6 @@ body {
 .system-message.fade-out {
     opacity: 0;
     transform: translateY(-20px);
-}
-
-.username-highlight {
-    font-weight: bold;
-    display: inline-block;
-    transition: color 0.3s ease;
-}
-
-.system-message .username-highlight {
-    font-style: normal;
 }
 
 .message-input-container {
@@ -486,31 +451,25 @@ body {
 .send-button {
     width: 36px;
     height: 36px;
+    border-radius: 18px;
+    background: var(--color-send-button);
+    color: var(--color-text);
     border: none;
-    padding: 8px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    transition: all 0.3s ease;
-}
-
-.send-button svg {
-    width: 15px;
-    height: 15px;
-}
-
-.send-button path {
-    fill: white;
-}
-
-.send-button:hover {
-    opacity: 0.9;
+    transition: transform 0.2s;
 }
 
 .send-button:active {
-    opacity: 0.8;
+    transform: scale(0.95);
+}
+
+.send-button svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
 }
 
 .guest-selection {
