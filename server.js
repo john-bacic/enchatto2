@@ -246,51 +246,28 @@ io.on('connection', (socket) => {
         
         // Set new username based on host/guest status
         if (isHost) {
-            if (room.hostId === null) {
-                username = storedName;
-                userColor = HOST_COLOR;
-                room.hostId = socket.id;
-                room.hostName = storedName;
-            } else {
-                // If there's already a host, join as guest instead
-                if (storedName && storedName !== 'Guest') {
-                    username = storedName;
-                    userColor = storedColor || generateColor();
-                } else {
-                    room.guestCount++;
-                    username = `Guest ${room.guestCount}`;
-                    userColor = generateColor();
-                }
-                while (Array.from(room.colors.values()).includes(userColor)) {
-                    userColor = generateColor();
-                }
-            }
+            username = storedName || 'Host';
+            userColor = HOST_COLOR; // Always use HOST_COLOR for host
+            room.hostId = socket.id;
         } else {
-            // For guests, use their stored name and color if available
-            if (storedName && storedName !== 'Guest') {
-                username = storedName;
-                userColor = storedColor || generateColor();
-            } else {
-                room.guestCount++;
-                username = `Guest ${room.guestCount}`;
-                userColor = generateColor();
-            }
-            while (Array.from(room.colors.values()).includes(userColor)) {
-                userColor = generateColor();
-            }
+            username = storedName || `Guest ${room.guestCount + 1}`;
+            userColor = storedColor || generateColor();
+            room.guestCount++;
         }
-        
-        // Join new room and update room state
-        currentRoom = roomId;
+
+        // Join the room
         socket.join(roomId);
-        room.users.set(socket.id, { username, color: userColor });
-        
-        // Notify user of their assigned name and color
-        socket.emit('username-assigned', { username, color: userColor });
-        
+        currentRoom = roomId;
+
+        // Send username and color to the client
+        socket.emit('username-assigned', {
+            username,
+            color: userColor
+        });
+
         // Notify others
         socket.to(roomId).emit('user-joined', { username, color: userColor });
-        
+
         // Send recent messages
         const recentMessages = room.messages.slice(-50);
         socket.emit('recent-messages', recentMessages);

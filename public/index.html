@@ -390,6 +390,10 @@
         socket.on('username-assigned', (data) => {
             username = data.username;
             userColor = data.color;
+            const welcomeMessage = document.getElementById('welcome-message');
+            if (welcomeMessage) {
+                welcomeMessage.innerHTML = `You joined as: <span style="color: ${userColor}">${username}</span>`;
+            }
             
             // Store the color if we're a guest
             if (!isHost && username) {
@@ -400,9 +404,6 @@
                     guestNameInput.style.borderColor = userColor;
                 }
             }
-            
-            const displayName = isHost ? localStorage.getItem('chatHostUsername') || 'Host' : username;
-            document.getElementById('welcome-message').textContent = `You joined as: ${displayName}`;
         });
         
         socket.on('user-joined', (data) => {
