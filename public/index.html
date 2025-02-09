@@ -337,6 +337,25 @@
         const showEnCheckbox = document.getElementById('show-en');
         const showJpCheckbox = document.getElementById('show-jp');
 
+        // Load toggle states from localStorage
+        function loadToggleStates() {
+            const showEn = localStorage.getItem('showEn');
+            const showJp = localStorage.getItem('showJp');
+            
+            // Set checkbox states (default to checked if not found)
+            showEnCheckbox.checked = showEn === null ? true : showEn === 'true';
+            showJpCheckbox.checked = showJp === null ? true : showJp === 'true';
+            
+            // Update visibility of existing messages
+            updateMessageVisibility();
+        }
+
+        // Save toggle states to localStorage
+        function saveToggleStates() {
+            localStorage.setItem('showEn', showEnCheckbox.checked);
+            localStorage.setItem('showJp', showJpCheckbox.checked);
+        }
+
         function updateMessageVisibility() {
             const messages = document.querySelectorAll('.message');
             messages.forEach(message => {
@@ -354,8 +373,19 @@
             });
         }
 
-        showEnCheckbox.addEventListener('change', updateMessageVisibility);
-        showJpCheckbox.addEventListener('change', updateMessageVisibility);
+        // Add event listeners for toggle changes
+        showEnCheckbox.addEventListener('change', () => {
+            updateMessageVisibility();
+            saveToggleStates();
+        });
+
+        showJpCheckbox.addEventListener('change', () => {
+            updateMessageVisibility();
+            saveToggleStates();
+        });
+
+        // Load saved states when page loads
+        loadToggleStates();
         
         socket.on('username-assigned', (data) => {
             username = data.username;
