@@ -10,6 +10,7 @@ let currentRoom = null;
 let username = null;
 let lastKnownRoom = null;
 let lastKnownUsername = null;
+let userColor = null;
 
 // DOM Elements
 const welcomeScreen = document.getElementById('welcome-screen');
@@ -90,6 +91,7 @@ socket.on('room-joined', (roomId, userData) => {
     lastKnownRoom = roomId;
     username = userData.username;
     lastKnownUsername = userData.username;
+    userColor = userData.color;
     console.log('Joined room:', roomId, 'as:', userData.username);
     roomNumber.textContent = roomId;
     welcomeScreen.style.display = 'none';
@@ -104,30 +106,42 @@ socket.on('room-created', (roomId) => {
     chatScreen.style.display = 'block';
 });
 
-socket.on('chat-message', (username, message) => {
+// Function to create message element
+function createMessageElement(data, isTranslation = false) {
+    if (isTranslation) {
+        // Find existing message and add translation
+        const messageId = data.messageId;
+        const existingMessage = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (existingMessage) {
+            const translationDiv = document.createElement('div');
+            translationDiv.classList.add('message-translation');
+            translationDiv.textContent = `${data.targetLang === 'en' ? '🇺🇸' : '🇯🇵'} ${data.translation}`;
+            existingMessage.querySelector('.message-content').appendChild(translationDiv);
+        }
+        return;
+    }
+
+    // Create new message element
     const messageElement = document.createElement('div');
-    messageElement.classList.add('message');
+    messageElement.className = 'message';
+    if (data.username === username) {
+        messageElement.classList.add('own-message');
+    }
+    
+    // Generate unique message ID
+    const messageId = Date.now() + Math.random().toString(36).substr(2, 9);
+    messageElement.setAttribute('data-message-id', messageId);
+    
     messageElement.innerHTML = `
-        <span class="username">${username}</span>
-        <span class="message-text">${message}</span>
+        <span class="username" style="color: ${data.color}">${data.username}</span>
+        <div class="message-content">
+            <div class="message-text">${data.message}</div>
+        </div>
+        <span class="timestamp">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
     `;
-    chatMessages.appendChild(messageElement);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-});
-
-socket.on('user-joined', (username) => {
-    const messageElement = document.createElement('div');
-    messageElement.classList.add('system-message');
-    messageElement.textContent = `${username} joined the room`;
-    chatMessages.appendChild(messageElement);
-});
-
-socket.on('user-left', (username) => {
-    const messageElement = document.createElement('div');
-    messageElement.classList.add('system-message');
-    messageElement.textContent = `${username} left the room`;
-    chatMessages.appendChild(messageElement);
-});
+    
+    return { element: messageElement, messageId };
+}
 
 // Function to send message with connection check
 function sendMessage() {
@@ -149,7 +163,7 @@ function sendMessage() {
         socket.once('connect', () => {
             // Rejoin room and then send message
             socket.emit('join-room', lastKnownRoom, false, lastKnownUsername, () => {
-                socket.emit('chat-message', lastKnownRoom, message);
+                sendMessageWithId(message);
                 messageInput.value = '';
             });
         });
@@ -158,10 +172,55 @@ function sendMessage() {
 
     // Normal send if connected
     if (currentRoom) {
-        socket.emit('chat-message', currentRoom, message);
+        sendMessageWithId(message);
         messageInput.value = '';
     }
 }
+
+// Send message with ID for tracking
+function sendMessageWithId(message) {
+    const messageData = {
+        message,
+        username,
+        color: userColor,
+        messageId: Date.now() + Math.random().toString(36).substr(2, 9)
+    };
+    
+    // Show message immediately
+    const { element, messageId } = createMessageElement(messageData);
+    chatMessages.appendChild(element);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Send to server
+    socket.emit('chat-message', currentRoom, messageData);
+}
+
+// Handle incoming messages
+socket.on('chat-message', (data) => {
+    if (data.isTranslation) {
+        // Handle translation update
+        createMessageElement(data, true);
+    } else {
+        // Handle new message
+        const { element } = createMessageElement(data);
+        chatMessages.appendChild(element);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+});
+
+socket.on('user-joined', (username) => {
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('system-message');
+    messageElement.textContent = `${username} joined the room`;
+    chatMessages.appendChild(messageElement);
+});
+
+socket.on('user-left', (username) => {
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('system-message');
+    messageElement.textContent = `${username} left the room`;
+    chatMessages.appendChild(messageElement);
+});
 
 // Keep socket alive
 setInterval(() => {
