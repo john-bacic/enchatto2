@@ -318,65 +318,55 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('chat-message', async (roomId, messageData) => {
+    socket.on('chat-message', async (roomId, message) => {
         if (!currentRoom || !username) return;
         
         const room = rooms.get(roomId);
         if (!room) return;
 
-        // Broadcast original message immediately
-        io.to(roomId).emit('chat-message', {
-            ...messageData,
+        // Detect the language of the message
+        const detectedLang = await detectLanguage(message);
+        
+        // Initialize translation object
+        const translations = {
+            original: message,
+            translated: null,
+            sourceLang: detectedLang,
+            targetLang: null
+        };
+
+        // Translate if the message is in English or Japanese
+        if (detectedLang === 'en' || detectedLang === 'ja') {
+            const targetLang = detectedLang === 'en' ? 'ja' : 'en';
+            translations.translated = await translateText(message, targetLang);
+            translations.targetLang = targetLang;
+        }
+
+        // Add message to room history
+        room.messages.push({
+            username,
+            message: translations.original,
+            translation: translations.translated,
+            sourceLang: translations.sourceLang,
+            targetLang: translations.targetLang,
+            color: userColor,
             timestamp: new Date()
         });
 
-        // Start translation process
-        try {
-            // Detect the language of the message
-            const detectedLang = await detectLanguage(messageData.message);
-            
-            // Translate if the message is in English or Japanese
-            if (detectedLang === 'en' || detectedLang === 'ja') {
-                const targetLang = detectedLang === 'en' ? 'ja' : 'en';
-                const translation = await translateText(messageData.message, targetLang);
-                
-                // Send translation as a separate message
-                io.to(roomId).emit('chat-message', {
-                    ...messageData,
-                    translation,
-                    sourceLang: detectedLang,
-                    targetLang,
-                    isTranslation: true
-                });
-
-                // Store message with translation
-                room.messages.push({
-                    ...messageData,
-                    translation,
-                    sourceLang: detectedLang,
-                    targetLang,
-                    timestamp: new Date()
-                });
-            } else {
-                // Store message without translation
-                room.messages.push({
-                    ...messageData,
-                    timestamp: new Date()
-                });
-            }
-
-            // Trim message history if needed
-            if (room.messages.length > 100) {
-                room.messages = room.messages.slice(-100);
-            }
-        } catch (error) {
-            console.error('Translation error:', error);
-            // Store original message even if translation fails
-            room.messages.push({
-                ...messageData,
-                timestamp: new Date()
-            });
+        // Trim message history if needed
+        if (room.messages.length > 100) {
+            room.messages = room.messages.slice(-100);
         }
+
+        // Broadcast message to all users in the room
+        io.to(roomId).emit('chat-message', {
+            username,
+            message: translations.original,
+            translation: translations.translated,
+            sourceLang: translations.sourceLang,
+            targetLang: translations.targetLang,
+            color: userColor
+        });
     });
     
     socket.on('disconnect', () => {

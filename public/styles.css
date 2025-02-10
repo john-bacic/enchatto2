@@ -479,23 +479,14 @@ body {
 }
 
 .message-content {
-    margin: 4px 0;
-    word-wrap: break-word;
     display: flex;
     flex-direction: column;
     gap: 4px;
 }
 
-.message-text {
-    font-size: 16px;
-    line-height: 1.4;
-}
-
-.message-translation {
-    margin-top: 4px;
-    font-size: 14px;
-    color: var(--color-text-muted);
-    font-style: italic;
+.text {
+    margin: 0;
+    padding: 0;
 }
 
 .translation-text {
