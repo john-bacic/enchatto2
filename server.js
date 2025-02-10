@@ -4,11 +4,14 @@ const http = require('http').createServer(app);
 const io = require('socket.io')(http, {
     cors: {
         origin: "*",
-        methods: ["GET", "POST"]
+        methods: ["GET", "POST"],
+        credentials: true
     },
-    pingTimeout: 20000,
-    pingInterval: 20000,
-    transports: ['websocket', 'polling']
+    allowEIO3: true,
+    pingTimeout: 10000,
+    pingInterval: 10000,
+    transports: ['websocket', 'polling'],
+    maxHttpBufferSize: 1e8
 });
 const path = require('path');
 const QRCode = require('qrcode');
@@ -19,8 +22,14 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static files with proper headers
+app.use(express.static(path.join(__dirname, 'public'), {
+    setHeaders: (res, path) => {
+        res.set('Access-Control-Allow-Origin', '*');
+        res.set('Access-Control-Allow-Methods', 'GET, POST');
+        res.set('Access-Control-Allow-Headers', 'Content-Type');
+    }
+}));
 
 // Store rooms
 const rooms = new Map();
@@ -237,54 +246,65 @@ io.on('connection', (socket) => {
     let username = null;
     let userColor = null;
 
-    // Handle ping for connection health check
-    socket.on('ping', () => {
-        socket.emit('pong');
+    // Handle ping with acknowledgment
+    socket.on('ping', (callback) => {
+        if (callback) callback('pong');
+        else socket.emit('pong');
     });
 
     // Handle explicit rejoin attempts
-    socket.on('rejoin-room', (data) => {
-        console.log('User attempting to rejoin room:', data);
-        const { room, username: requestedUsername } = data;
-        
-        // Validate room exists
-        const roomData = rooms.get(room);
-        if (!roomData) {
-            socket.emit('error', 'Room no longer exists');
-            return;
+    socket.on('rejoin-room', (data, callback) => {
+        try {
+            console.log('User attempting to rejoin room:', data);
+            const { room, username: requestedUsername } = data;
+            
+            if (!room || !requestedUsername) {
+                if (callback) callback('Invalid rejoin data');
+                return;
+            }
+
+            const roomData = rooms.get(room);
+            if (!roomData) {
+                if (callback) callback('Room no longer exists');
+                return;
+            }
+
+            // Restore user data if possible
+            const previousUser = Array.from(roomData.users.values())
+                .find(u => u.username === requestedUsername);
+
+            username = requestedUsername;
+            userColor = previousUser ? previousUser.color : generateColor();
+            currentRoom = room;
+
+            // Join room
+            socket.join(room);
+            roomData.users.set(socket.id, { username, color: userColor });
+
+            // Send confirmation and recent messages
+            socket.emit('room-joined', room, {
+                username,
+                color: userColor,
+                isHost: roomData.hostId === socket.id
+            });
+
+            // Send recent messages
+            const recentMessages = roomData.messages.slice(-50);
+            socket.emit('recent-messages', recentMessages);
+
+            // Notify others
+            socket.to(room).emit('user-joined', {
+                username,
+                color: userColor,
+                isHost: roomData.hostId === socket.id
+            });
+
+            console.log(`User ${username} successfully rejoined room ${room}`);
+            if (callback) callback(null);
+        } catch (error) {
+            console.error('Error handling rejoin:', error);
+            if (callback) callback('Server error processing rejoin');
         }
-
-        // Restore user data if possible
-        const previousUser = Array.from(roomData.users.values())
-            .find(u => u.username === requestedUsername);
-
-        username = requestedUsername;
-        userColor = previousUser ? previousUser.color : generateColor();
-        currentRoom = room;
-
-        // Join room
-        socket.join(room);
-        roomData.users.set(socket.id, { username, color: userColor });
-
-        // Send confirmation and recent messages
-        socket.emit('room-joined', room, {
-            username,
-            color: userColor,
-            isHost: roomData.hostId === socket.id
-        });
-
-        // Send recent messages
-        const recentMessages = roomData.messages.slice(-50);
-        socket.emit('recent-messages', recentMessages);
-
-        // Notify others
-        socket.to(room).emit('user-joined', {
-            username,
-            color: userColor,
-            isHost: roomData.hostId === socket.id
-        });
-
-        console.log(`User ${username} successfully rejoined room ${room}`);
     });
 
     socket.on('join-room', (roomId, isHost, storedName, storedColor) => {
@@ -366,49 +386,54 @@ io.on('connection', (socket) => {
 
     // Handle chat messages with acknowledgment
     socket.on('chat-message', (roomId, message, callback) => {
-        console.log('Received message:', { roomId, message, from: username });
-        
-        // Validate room and user
-        if (!roomId || !message) {
-            console.log('Invalid message data');
-            if (callback) callback('Invalid message data');
-            return;
+        try {
+            console.log('Received message:', { roomId, message, from: username });
+            
+            // Validate input
+            if (!roomId || !message) {
+                console.log('Invalid message data');
+                if (callback) callback('Invalid message data');
+                return;
+            }
+
+            const room = rooms.get(roomId);
+            if (!room) {
+                console.log('Room not found:', roomId);
+                if (callback) callback('Room not found');
+                return;
+            }
+
+            if (!username) {
+                console.log('No username found for socket:', socket.id);
+                if (callback) callback('Not properly connected to room');
+                return;
+            }
+
+            // Create message object
+            const messageData = {
+                username,
+                message,
+                color: userColor,
+                timestamp: new Date().toISOString()
+            };
+
+            // Store in room history
+            room.messages.push(messageData);
+            if (room.messages.length > 100) {
+                room.messages = room.messages.slice(-100);
+            }
+
+            // Broadcast to room
+            io.to(roomId).emit('chat-message', messageData);
+
+            // Acknowledge successful send
+            if (callback) callback(null);
+            
+            console.log('Message broadcast to room:', roomId);
+        } catch (error) {
+            console.error('Error handling message:', error);
+            if (callback) callback('Server error processing message');
         }
-
-        const room = rooms.get(roomId);
-        if (!room) {
-            console.log('Room not found:', roomId);
-            if (callback) callback('Room not found');
-            return;
-        }
-
-        if (!username) {
-            console.log('No username found for socket:', socket.id);
-            if (callback) callback('Not properly connected to room');
-            return;
-        }
-
-        // Create message object
-        const messageData = {
-            username,
-            message,
-            color: userColor,
-            timestamp: new Date().toISOString()
-        };
-
-        // Store in room history
-        room.messages.push(messageData);
-        if (room.messages.length > 100) {
-            room.messages = room.messages.slice(-100);
-        }
-
-        // Broadcast to room
-        io.to(roomId).emit('chat-message', messageData);
-
-        // Acknowledge successful send
-        if (callback) callback(null);
-        
-        console.log('Message broadcast to room:', roomId);
     });
     
     // Enhanced disconnect handling

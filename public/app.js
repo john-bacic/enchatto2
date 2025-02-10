@@ -1,10 +1,15 @@
+// Initialize socket with deployment-friendly settings
 const socket = io({
+    transports: ['websocket', 'polling'],
+    upgrade: true,
+    rememberUpgrade: true,
     reconnection: true,
-    reconnectionAttempts: 10,
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
     timeout: 20000,
-    autoConnect: true
+    autoConnect: true,
+    forceNew: true
 });
 
 let currentRoom = null;
@@ -105,7 +110,7 @@ function showSystemMessage(message) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// Enhanced message sending with connection check and logging
+// Enhanced message sending with better error handling
 function sendMessage() {
     const message = messageInput.value.trim();
     debugLog('Attempting to send message:', { message, currentRoom, connected: socket.connected });
@@ -122,23 +127,46 @@ function sendMessage() {
     }
 
     if (!socket.connected) {
-        debugLog('Socket disconnected, queueing message');
-        showSystemMessage("Cannot send message - attempting to reconnect...");
+        debugLog('Socket disconnected, attempting reconnection...');
+        showSystemMessage("Reconnecting to server...");
+        socket.connect();
         
+        // Queue message
         const queuedMessage = message;
-        socket.once('reconnect', () => {
+        let reconnectTimeout = setTimeout(() => {
+            debugLog('Reconnection timeout, message not sent');
+            showSystemMessage("Connection failed. Please try again.");
+        }, 5000);
+
+        socket.once('connect', () => {
+            clearTimeout(reconnectTimeout);
             debugLog('Reconnected, sending queued message');
-            socket.emit('chat-message', currentRoom, queuedMessage);
-            messageInput.value = '';
+            
+            // Rejoin room first
+            socket.emit('rejoin-room', {
+                room: currentRoom,
+                username: username
+            }, () => {
+                // Send message after rejoining
+                socket.emit('chat-message', currentRoom, queuedMessage, (error) => {
+                    if (error) {
+                        debugLog('Error sending queued message:', error);
+                        showSystemMessage("Failed to send message. Please try again.");
+                        return;
+                    }
+                    messageInput.value = '';
+                    debugLog('Queued message sent successfully');
+                });
+            });
         });
         return;
     }
 
-    debugLog('Emitting chat message');
+    // Normal send if connected
     socket.emit('chat-message', currentRoom, message, (error) => {
         if (error) {
             debugLog('Error sending message:', error);
-            showSystemMessage("Error sending message. Please try again.");
+            showSystemMessage("Error: " + error);
             return;
         }
         debugLog('Message sent successfully');
@@ -239,12 +267,15 @@ socket.on('user-left', (username) => {
     chatMessages.appendChild(messageElement);
 });
 
-// Keep connection alive with ping/pong
+// Keep connection alive with more frequent pings
 setInterval(() => {
     if (socket.connected) {
         socket.emit('ping');
+    } else {
+        debugLog('Socket disconnected during ping, attempting reconnect');
+        socket.connect();
     }
-}, 20000);
+}, 10000);
 
 socket.on('pong', () => {
     console.log('Connection alive - received pong');
