@@ -4,14 +4,11 @@ const http = require('http').createServer(app);
 const io = require('socket.io')(http, {
     cors: {
         origin: "*",
-        methods: ["GET", "POST"],
-        credentials: true
+        methods: ["GET", "POST"]
     },
-    allowEIO3: true,
-    pingTimeout: 10000,
-    pingInterval: 10000,
-    transports: ['websocket', 'polling'],
-    maxHttpBufferSize: 1e8
+    pingTimeout: 30000,
+    pingInterval: 25000,
+    transports: ['websocket', 'polling']
 });
 const path = require('path');
 const QRCode = require('qrcode');
@@ -22,14 +19,8 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
-// Serve static files with proper headers
-app.use(express.static(path.join(__dirname, 'public'), {
-    setHeaders: (res, path) => {
-        res.set('Access-Control-Allow-Origin', '*');
-        res.set('Access-Control-Allow-Methods', 'GET, POST');
-        res.set('Access-Control-Allow-Headers', 'Content-Type');
-    }
-}));
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Store rooms
 const rooms = new Map();
@@ -116,8 +107,7 @@ app.get('/room/:roomId', async (req, res) => {
                 guestCount: 0,
                 colors: new Map(),
                 hostId: null,  // Track the host's socket ID
-                hostName: hostName,  // Store the host name
-                disconnectedUsers: new Map() // Store data for disconnected users
+                hostName: hostName  // Store the host name
             });
         }
         
@@ -147,8 +137,7 @@ app.get('/api/room/:roomId', async (req, res) => {
             guestCount: 0,
             messages: [],
             users: new Map(),
-            colors: new Map(),
-            disconnectedUsers: new Map() // Store data for disconnected users
+            colors: new Map()
         };
         rooms.set(roomId, room);
 
@@ -246,69 +235,13 @@ io.on('connection', (socket) => {
     let username = null;
     let userColor = null;
 
-    // Handle ping with acknowledgment
-    socket.on('ping', (callback) => {
-        if (callback) callback('pong');
-        else socket.emit('pong');
-    });
-
-    // Handle explicit rejoin attempts
-    socket.on('rejoin-room', (data, callback) => {
-        try {
-            console.log('User attempting to rejoin room:', data);
-            const { room, username: requestedUsername } = data;
-            
-            if (!room || !requestedUsername) {
-                if (callback) callback('Invalid rejoin data');
-                return;
-            }
-
-            const roomData = rooms.get(room);
-            if (!roomData) {
-                if (callback) callback('Room no longer exists');
-                return;
-            }
-
-            // Restore user data if possible
-            const previousUser = Array.from(roomData.users.values())
-                .find(u => u.username === requestedUsername);
-
-            username = requestedUsername;
-            userColor = previousUser ? previousUser.color : generateColor();
-            currentRoom = room;
-
-            // Join room
-            socket.join(room);
-            roomData.users.set(socket.id, { username, color: userColor });
-
-            // Send confirmation and recent messages
-            socket.emit('room-joined', room, {
-                username,
-                color: userColor,
-                isHost: roomData.hostId === socket.id
-            });
-
-            // Send recent messages
-            const recentMessages = roomData.messages.slice(-50);
-            socket.emit('recent-messages', recentMessages);
-
-            // Notify others
-            socket.to(room).emit('user-joined', {
-                username,
-                color: userColor,
-                isHost: roomData.hostId === socket.id
-            });
-
-            console.log(`User ${username} successfully rejoined room ${room}`);
-            if (callback) callback(null);
-        } catch (error) {
-            console.error('Error handling rejoin:', error);
-            if (callback) callback('Server error processing rejoin');
-        }
+    // Handle ping
+    socket.on('ping', () => {
+        socket.emit('pong');
     });
 
     socket.on('join-room', (roomId, isHost, storedName, storedColor) => {
-        console.log('User joining room:', roomId, 'as host:', isHost, 'with stored name:', storedName);
+        console.log('User joining room:', roomId, 'as host:', isHost, 'with stored name:', storedName, 'color:', storedColor);
         
         // Leave current room if any
         if (currentRoom) {
@@ -324,52 +257,53 @@ io.on('connection', (socket) => {
                 guestCount: 0,
                 messages: [],
                 users: new Map(),
-                colors: new Map(),
-                disconnectedUsers: new Map() // Store data for disconnected users
+                colors: new Map()
             };
             rooms.set(roomId, room);
         }
         
-        // Check for existing user data
-        const existingUser = room.disconnectedUsers.get(storedName);
-        if (existingUser) {
-            username = storedName;
-            userColor = existingUser.color;
-            room.disconnectedUsers.delete(storedName);
+        // Reset user state before joining new room
+        username = null;
+        userColor = null;
+        
+        // Set new username based on host/guest status
+        if (isHost) {
+            // If this is the original host (based on stored name), let them rejoin as host
+            const isOriginalHost = storedName === room.hostName;
+            if (room.hostId === null || isOriginalHost) {
+                username = storedName || 'Host';
+                userColor = HOST_COLOR;
+                room.hostId = socket.id;
+                room.hostName = storedName; // Store host name for future checks
+            } else {
+                // If someone else is host, join as guest
+                username = storedName || `Guest ${room.guestCount + 1}`;
+                userColor = storedColor || generateColor();
+                room.guestCount++;
+            }
         } else {
-            username = storedName || (isHost ? 'Host' : `Guest ${room.guestCount + 1}`);
-            userColor = storedColor || (isHost ? HOST_COLOR : generateColor());
-        }
-
-        // Update room data
-        if (isHost && !room.hostId) {
-            room.hostId = socket.id;
-            room.hostName = username;
-        } else {
+            username = storedName || `Guest ${room.guestCount + 1}`;
+            userColor = storedColor || generateColor();
             room.guestCount++;
         }
 
-        // Join room and store user data
+        // Join the room
         socket.join(roomId);
         currentRoom = roomId;
-        room.users.set(socket.id, { username, color: userColor });
 
-        // Send confirmation
-        socket.emit('room-joined', roomId, {
+        // Send username and color to the client
+        socket.emit('username-assigned', {
             username,
             color: userColor,
-            isHost: room.hostId === socket.id
+            isHost: username === room.hostName // Tell client if they're the host
         });
-
-        // Send recent messages
-        socket.emit('recent-messages', room.messages.slice(-50));
 
         // Notify others
-        socket.to(roomId).emit('user-joined', {
-            username,
-            color: userColor,
-            isHost: room.hostId === socket.id
-        });
+        socket.to(roomId).emit('user-joined', { username, color: userColor });
+
+        // Send recent messages
+        const recentMessages = room.messages.slice(-50);
+        socket.emit('recent-messages', recentMessages);
     });
 
     socket.on('set-username', (roomId, requestedUsername) => {
@@ -384,129 +318,82 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Handle chat messages with acknowledgment
-    socket.on('chat-message', (roomId, message, callback) => {
-        try {
-            console.log('Received message:', { roomId, message, from: username });
-            
-            // Validate input
-            if (!roomId || !message) {
-                console.log('Invalid message data');
-                if (callback) callback('Invalid message data');
-                return;
-            }
+    socket.on('chat-message', async (roomId, message) => {
+        if (!currentRoom || !username) return;
+        
+        const room = rooms.get(roomId);
+        if (!room) return;
 
-            const room = rooms.get(roomId);
-            if (!room) {
-                console.log('Room not found:', roomId);
-                if (callback) callback('Room not found');
-                return;
-            }
+        // Detect the language of the message
+        const detectedLang = await detectLanguage(message);
+        
+        // Initialize translation object
+        const translations = {
+            original: message,
+            translated: null,
+            sourceLang: detectedLang,
+            targetLang: null
+        };
 
-            if (!username) {
-                console.log('No username found for socket:', socket.id);
-                if (callback) callback('Not properly connected to room');
-                return;
-            }
-
-            // Create message object
-            const messageData = {
-                username,
-                message,
-                color: userColor,
-                timestamp: new Date().toISOString()
-            };
-
-            // Store in room history
-            room.messages.push(messageData);
-            if (room.messages.length > 100) {
-                room.messages = room.messages.slice(-100);
-            }
-
-            // Broadcast to room
-            io.to(roomId).emit('chat-message', messageData);
-
-            // Acknowledge successful send
-            if (callback) callback(null);
-            
-            console.log('Message broadcast to room:', roomId);
-        } catch (error) {
-            console.error('Error handling message:', error);
-            if (callback) callback('Server error processing message');
+        // Translate if the message is in English or Japanese
+        if (detectedLang === 'en' || detectedLang === 'ja') {
+            const targetLang = detectedLang === 'en' ? 'ja' : 'en';
+            translations.translated = await translateText(message, targetLang);
+            translations.targetLang = targetLang;
         }
+
+        // Add message to room history
+        room.messages.push({
+            username,
+            message: translations.original,
+            translation: translations.translated,
+            sourceLang: translations.sourceLang,
+            targetLang: translations.targetLang,
+            color: userColor,
+            timestamp: new Date()
+        });
+
+        // Trim message history if needed
+        if (room.messages.length > 100) {
+            room.messages = room.messages.slice(-100);
+        }
+
+        // Broadcast message to all users in the room
+        io.to(roomId).emit('chat-message', {
+            username,
+            message: translations.original,
+            translation: translations.translated,
+            sourceLang: translations.sourceLang,
+            targetLang: translations.targetLang,
+            color: userColor
+        });
     });
     
-    // Enhanced disconnect handling
-    socket.on('disconnect', (reason) => {
-        console.log(`User ${socket.id} disconnected:`, reason);
+    socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
         
         if (currentRoom) {
             const room = rooms.get(currentRoom);
-            if (room) {
-                // Store disconnected user data for potential reconnection
-                if (username) {
-                    room.disconnectedUsers.set(username, {
-                        color: userColor,
-                        lastSeen: new Date(),
-                        isHost: room.hostId === socket.id
-                    });
-                }
-
-                // Clear host if needed
+            if (room && room.users.has(socket.id)) {
+                const user = room.users.get(socket.id);
+                
+                // If disconnecting user was host, clear host ID
                 if (room.hostId === socket.id) {
                     room.hostId = null;
                 }
-
-                // Remove from active users
+                
                 room.users.delete(socket.id);
-
-                // Notify others
-                socket.to(currentRoom).emit('user-left', {
-                    username,
-                    color: userColor
-                });
-
-                // Clean up room if empty
-                if (room.users.size === 0) {
-                    // Keep room data for a while in case of reconnection
-                    setTimeout(() => {
-                        if (room.users.size === 0) {
-                            rooms.delete(currentRoom);
-                            console.log(`Room ${currentRoom} cleaned up due to inactivity`);
-                        }
-                    }, 300000); // 5 minutes
+                room.colors.delete(socket.id);
+                
+                if (user) {
+                    socket.to(currentRoom).emit('user-left', { 
+                        username: user.username, 
+                        color: user.color 
+                    });
                 }
             }
         }
     });
-
-    function leaveCurrentRoom() {
-        if (currentRoom) {
-            const room = rooms.get(currentRoom);
-            if (room) {
-                // Remove from active users
-                room.users.delete(socket.id);
-
-                // Notify others
-                socket.to(currentRoom).emit('user-left', {
-                    username,
-                    color: userColor
-                });
-
-                // Clean up room if empty
-                if (room.users.size === 0) {
-                    // Keep room data for a while in case of reconnection
-                    setTimeout(() => {
-                        if (room.users.size === 0) {
-                            rooms.delete(currentRoom);
-                            console.log(`Room ${currentRoom} cleaned up due to inactivity`);
-                        }
-                    }, 300000); // 5 minutes
-                }
-            }
-            currentRoom = null;
-        }
-    }
 });
 
 // Start server
