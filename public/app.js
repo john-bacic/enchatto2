@@ -1,15 +1,16 @@
 const socket = io({
     reconnection: true,
-    reconnectionAttempts: 5,
+    reconnectionAttempts: 10,
     reconnectionDelay: 1000,
-    timeout: 10000,
-    autoConnect: true
+    reconnectionDelayMax: 5000,
+    timeout: 20000
 });
 
 let currentRoom = null;
 let username = null;
 let lastKnownRoom = null;
 let lastKnownUsername = null;
+let reconnectAttempts = 0;
 
 // DOM Elements
 const welcomeScreen = document.getElementById('welcome-screen');
@@ -22,46 +23,79 @@ const messageInput = document.getElementById('message-input');
 const sendBtn = document.getElementById('send-btn');
 const chatMessages = document.getElementById('chat-messages');
 
-// Handle visibility change
-document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'visible') {
-        // Reconnect if needed
+// Handle visibility change with improved logging
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+        console.log("App is back in focus, checking socket connection...");
         if (!socket.connected) {
-            console.log('Reconnecting on visibility change...');
+            console.log("Socket disconnected, attempting to reconnect...");
             socket.connect();
             
-            // Rejoin room if we have the information
+            // Show reconnecting message to user
+            showSystemMessage("Reconnecting to chat...");
+            
+            // Attempt to rejoin room
             if (lastKnownRoom) {
-                console.log('Rejoining room:', lastKnownRoom);
-                socket.emit('join-room', lastKnownRoom, false, lastKnownUsername);
+                socket.emit('rejoin-room', {
+                    room: lastKnownRoom,
+                    username: lastKnownUsername
+                });
             }
+        } else {
+            console.log("Socket already connected");
         }
     }
 });
 
-// Handle socket reconnection
-socket.on('connect', () => {
-    console.log('Socket connected:', socket.id);
-    if (lastKnownRoom) {
-        console.log('Rejoining room after reconnect:', lastKnownRoom);
-        socket.emit('join-room', lastKnownRoom, false, lastKnownUsername);
-    }
-});
-
-socket.on('disconnect', () => {
-    console.log('Socket disconnected');
-});
-
-socket.on('connect_error', (error) => {
-    console.log('Connection error:', error);
-    // Try to reconnect
-    setTimeout(() => {
-        if (!socket.connected) {
-            console.log('Attempting to reconnect...');
+// Enhanced disconnect handling
+socket.on("disconnect", (reason) => {
+    console.warn("Socket disconnected:", reason);
+    showSystemMessage("Connection lost. Attempting to reconnect...");
+    
+    if (reason === "transport close" || reason === "ping timeout") {
+        reconnectAttempts++;
+        setTimeout(() => {
+            console.log(`Attempting to reconnect... (Attempt ${reconnectAttempts})`);
             socket.connect();
-        }
-    }, 2000);
+        }, Math.min(1000 * reconnectAttempts, 5000));
+    }
 });
+
+// Handle successful reconnection
+socket.on("reconnect", (attemptNumber) => {
+    console.log(`Reconnected after ${attemptNumber} attempts`);
+    showSystemMessage("Reconnected to chat!");
+    reconnectAttempts = 0;
+    
+    // Rejoin room if we have the information
+    if (lastKnownRoom) {
+        socket.emit('rejoin-room', {
+            room: lastKnownRoom,
+            username: lastKnownUsername
+        });
+    }
+});
+
+// Handle reconnect error
+socket.on("reconnect_error", (error) => {
+    console.error("Reconnection error:", error);
+    showSystemMessage("Failed to reconnect. Please refresh the page.");
+});
+
+// Handle reconnect failed
+socket.on("reconnect_failed", () => {
+    console.error("Failed to reconnect after all attempts");
+    showSystemMessage("Connection lost. Please refresh the page.");
+});
+
+// Utility function to show system messages
+function showSystemMessage(message) {
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('system-message');
+    messageElement.textContent = message;
+    chatMessages.appendChild(messageElement);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
 
 // Event Listeners
 createRoomBtn.addEventListener('click', () => {
@@ -129,47 +163,40 @@ socket.on('user-left', (username) => {
     chatMessages.appendChild(messageElement);
 });
 
-// Function to send message with connection check
+// Enhanced message sending with connection check
 function sendMessage() {
     const message = messageInput.value.trim();
     if (!message) return;
 
     if (!socket.connected) {
-        console.log('Socket disconnected, attempting to reconnect...');
-        socket.connect();
+        console.log("Cannot send message - socket disconnected");
+        showSystemMessage("Cannot send message - attempting to reconnect...");
         
-        // Show reconnecting message to user
-        const messageElement = document.createElement('div');
-        messageElement.classList.add('system-message');
-        messageElement.textContent = 'Reconnecting...';
-        chatMessages.appendChild(messageElement);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        
-        // Wait for reconnection
-        socket.once('connect', () => {
-            // Rejoin room and then send message
-            socket.emit('join-room', lastKnownRoom, false, lastKnownUsername, () => {
-                socket.emit('chat-message', lastKnownRoom, message);
+        // Queue message to be sent after reconnection
+        const queuedMessage = message;
+        socket.once('reconnect', () => {
+            if (currentRoom) {
+                socket.emit('chat-message', currentRoom, queuedMessage);
                 messageInput.value = '';
-            });
+                console.log("Queued message sent after reconnection");
+            }
         });
         return;
     }
 
-    // Normal send if connected
     if (currentRoom) {
         socket.emit('chat-message', currentRoom, message);
         messageInput.value = '';
     }
 }
 
-// Keep socket alive
+// Keep connection alive with ping/pong
 setInterval(() => {
     if (socket.connected) {
         socket.emit('ping');
     }
-}, 25000);
+}, 20000);
 
 socket.on('pong', () => {
-    console.log('Received pong from server');
+    console.log('Connection alive - received pong');
 });
