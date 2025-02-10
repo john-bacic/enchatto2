@@ -20,7 +20,7 @@
     /* Message colors */
     --color-message-bg: #222222;
     --color-message-own-bg: #1d2733;
-    --color-message-border: #ffffff1a;
+    --color-message-border: #ffffff00;
     --color-message-own-border: #ffffff26;
 
     /* Send button */
@@ -433,17 +433,17 @@ body {
 
 .lang-row:has(.en-text) .lang-label {
     background: rgba(76, 175, 80, 0.2);
-    color: #4CAF50;
+    color: #fff;
 }
 
 .lang-row:has(.jp-text) .lang-label {
     background: rgba(33, 150, 243, 0.2);
-    color: #2196F3;
+    color: #fff;
 }
 
 .lang-row:has(.rm-text) .lang-label {
     background: rgba(255, 193, 7, 0.2);
-    color: #FFC107;
+    color: #fff;
 }
 
 .message .en-text,
@@ -481,11 +481,11 @@ body {
 }
 
 .message .en-text {
-    color: var(--color-text);
+    color: #fff;
 }
 
 .message .jp-text {
-    color: var(--color-text);
+    color: #fff;
     margin-bottom: 2px;
 }
 
@@ -497,9 +497,9 @@ body {
 }
 
 .message .rp-text::before {
-    content: "→";
-    margin-right: 4px;
-    opacity: 0.7;
+    /* content: "→"; */
+    /* margin-right: 4px; */
+    opacity: 0.8;
 }
 
 .message-content {
@@ -516,20 +516,20 @@ body {
 }
 
 .message-content .en-text {
-    color: #4CAF50;
+    color: #fff;
 }
 
 .message-content .jp-text {
-    color: #2196F3;
+    color: #fff;
 }
 
 .message-content .rp-text {
-    color: #FFC107;
+    color: #eee;
     font-style: italic;
     opacity: 0.9;
     font-size: 0.95em;
-    padding-left: 16px;
-    border-left: 2px solid rgba(255, 193, 7, 0.3);
+    /* padding-left: 16px; */
+    border-left: 2px solid rgba(255, 255, 255, 0.3);
 }
 
 .language-toggles {
@@ -561,7 +561,7 @@ body {
 .toggle span {
     font-size: 13px;
     font-weight: 600;
-    color: var(--color-text-muted);
+    color: var(--color-text);
     transition: all 0.2s ease;
 }
 
