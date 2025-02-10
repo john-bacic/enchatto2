@@ -448,28 +448,30 @@ body {
     color: #808080;
 }
 
-.send-button {
-    width: 36px;
-    height: 36px;
-    border-radius: 18px;
-    background: var(--color-send-button);
-    color: var(--color-text);
-    border: none;
+.send-btn {
+    padding: 10px 20px;
+    border: 2px solid #4CAF50;
+    background-color: #4CAF50;
+    color: white;
+    border-radius: 5px;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.2s;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    margin-left: 10px;
 }
 
-.send-button:active {
+.send-btn:hover {
+    opacity: 0.9;
+    transform: scale(1.05);
+}
+
+.send-btn:active {
     transform: scale(0.95);
 }
 
-.send-button svg {
-    width: 18px;
-    height: 18px;
-    fill: currentColor;
+.send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .guest-selection {

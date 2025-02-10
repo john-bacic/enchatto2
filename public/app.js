@@ -17,6 +17,7 @@ let username = null;
 let lastKnownRoom = null;
 let lastKnownUsername = null;
 let reconnectAttempts = 0;
+let userColor = null;
 
 // DOM Elements
 const welcomeScreen = document.getElementById('welcome-screen');
@@ -186,28 +187,37 @@ joinRoomBtn.addEventListener('click', () => {
     }
 });
 
-messageInput.addEventListener('keypress', (e) => {
+// Event Listeners for message sending
+messageInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
+        e.preventDefault(); // Prevent default to avoid form submission
         sendMessage();
     }
 });
 
+// Ensure send button inherits color and works
 sendBtn.addEventListener('click', (e) => {
-    e.preventDefault();
+    e.preventDefault(); // Prevent default to avoid form submission
     sendMessage();
 });
 
 // Store room information when joining
 socket.on('room-joined', (roomId, userData) => {
     currentRoom = roomId;
-    lastKnownRoom = roomId;
     username = userData.username;
-    lastKnownUsername = userData.username;
-    console.log('Joined room:', roomId, 'as:', userData.username);
-    roomNumber.textContent = roomId;
+    userColor = userData.color;
+    lastKnownRoom = roomId;
+    lastKnownUsername = username;
+    
+    // Update send button color
+    sendBtn.style.backgroundColor = userColor;
+    sendBtn.style.borderColor = userColor;
+    
+    // Show chat interface
     welcomeScreen.style.display = 'none';
     chatScreen.style.display = 'block';
+    
+    debugLog('Joined room:', { roomId, userData });
 });
 
 socket.on('room-created', (roomId) => {
@@ -223,10 +233,13 @@ socket.on('chat-message', (data) => {
     debugLog('Received chat message:', data);
     const messageElement = document.createElement('div');
     messageElement.classList.add('message');
+    
+    // Apply color to username
     messageElement.innerHTML = `
-        <span class="username">${data.username}</span>
+        <span class="username" style="color: ${data.color}">${data.username}</span>
         <span class="message-text">${data.message}</span>
     `;
+    
     chatMessages.appendChild(messageElement);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 });
