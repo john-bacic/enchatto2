@@ -50,11 +50,19 @@
     <div id="chat-container" style="display: none;" class="chat-container">
         <div class="room-info">
             <div class="chat-header">
-                <div class="translation-toggle">
-                    <input type="checkbox" id="show-en" checked>
-                    <label for="show-en">EN</label>
-                    <input type="checkbox" id="show-jp" checked>
-                    <label for="show-jp">JP</label>
+                <div class="translation-toggles">
+                    <label class="toggle">
+                        <input type="checkbox" id="en-toggle" checked>
+                        <span>EN</span>
+                    </label>
+                    <label class="toggle">
+                        <input type="checkbox" id="jp-toggle" checked>
+                        <span>JP</span>
+                    </label>
+                    <label class="toggle">
+                        <input type="checkbox" id="rp-toggle" checked>
+                        <span>RP</span>
+                    </label>
                 </div>
             </div>
         </div>
@@ -324,6 +332,9 @@
             } else if (msg.sourceLang === 'ja') {
                 originalText.classList.add('jp-text');
                 originalText.style.display = showJpCheckbox.checked ? '' : 'none';
+            } else if (msg.sourceLang === 'rp') {
+                originalText.classList.add('rp-text');
+                originalText.style.display = showRpCheckbox.checked ? '' : 'none';
             }
             messageContent.appendChild(originalText);
 
@@ -340,6 +351,9 @@
                 } else if (msg.targetLang === 'ja') {
                     translationText.classList.add('jp-text');
                     translationText.style.display = showJpCheckbox.checked ? '' : 'none';
+                } else if (msg.targetLang === 'rp') {
+                    translationText.classList.add('rp-text');
+                    translationText.style.display = showRpCheckbox.checked ? '' : 'none';
                 }
                 messageContent.appendChild(translationText);
             }
@@ -348,17 +362,20 @@
         }
 
         // Initialize language toggles
-        const showEnCheckbox = document.getElementById('show-en');
-        const showJpCheckbox = document.getElementById('show-jp');
+        const showEnCheckbox = document.getElementById('en-toggle');
+        const showJpCheckbox = document.getElementById('jp-toggle');
+        const showRpCheckbox = document.getElementById('rp-toggle');
 
         // Load toggle states from localStorage
         function loadToggleStates() {
             const showEn = localStorage.getItem('showEn');
             const showJp = localStorage.getItem('showJp');
+            const showRp = localStorage.getItem('showRp');
             
             // Set checkbox states (default to checked if not found)
             showEnCheckbox.checked = showEn === null ? true : showEn === 'true';
             showJpCheckbox.checked = showJp === null ? true : showJp === 'true';
+            showRpCheckbox.checked = showRp === null ? true : showRp === 'true';
             
             // Update visibility of existing messages
             updateMessageVisibility();
@@ -368,6 +385,7 @@
         function saveToggleStates() {
             localStorage.setItem('showEn', showEnCheckbox.checked);
             localStorage.setItem('showJp', showJpCheckbox.checked);
+            localStorage.setItem('showRp', showRpCheckbox.checked);
         }
 
         function updateMessageVisibility() {
@@ -384,6 +402,12 @@
                 jpTexts.forEach(text => {
                     text.style.display = showJpCheckbox.checked ? '' : 'none';
                 });
+
+                // Update RP text visibility
+                const rpTexts = message.querySelectorAll('.rp-text');
+                rpTexts.forEach(text => {
+                    text.style.display = showRpCheckbox.checked ? '' : 'none';
+                });
             });
         }
 
@@ -394,6 +418,11 @@
         });
 
         showJpCheckbox.addEventListener('change', () => {
+            updateMessageVisibility();
+            saveToggleStates();
+        });
+
+        showRpCheckbox.addEventListener('change', () => {
             updateMessageVisibility();
             saveToggleStates();
         });

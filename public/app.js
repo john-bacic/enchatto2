@@ -104,13 +104,62 @@ socket.on('room-created', (roomId) => {
     chatScreen.style.display = 'block';
 });
 
-socket.on('chat-message', (username, message) => {
+socket.on('chat-message', (data) => {
     const messageElement = document.createElement('div');
     messageElement.classList.add('message');
-    messageElement.innerHTML = `
-        <span class="username">${username}</span>
-        <span class="message-text">${message}</span>
-    `;
+    
+    // Add own-message class if it's our message
+    if (data.username === username) {
+        messageElement.classList.add('own-message');
+    }
+
+    // Create message content container
+    const messageContent = document.createElement('div');
+    messageContent.classList.add('message-content');
+
+    // Add username with color
+    const usernameSpan = document.createElement('span');
+    usernameSpan.style.color = data.color;
+    usernameSpan.textContent = data.username;
+    messageContent.appendChild(usernameSpan);
+
+    // Add original message
+    const originalText = document.createElement('div');
+    originalText.textContent = data.message;
+    if (data.sourceLang === 'en') {
+        originalText.classList.add('en-text');
+        originalText.style.display = document.getElementById('en-toggle').checked ? '' : 'none';
+    } else if (data.sourceLang === 'ja') {
+        originalText.classList.add('jp-text');
+        originalText.style.display = document.getElementById('jp-toggle').checked ? '' : 'none';
+    }
+    messageContent.appendChild(originalText);
+
+    // Add romanji if available
+    if (data.romanji && data.sourceLang === 'ja') {
+        const romanjiText = document.createElement('div');
+        romanjiText.textContent = data.romanji;
+        romanjiText.classList.add('rp-text');
+        romanjiText.style.display = document.getElementById('rp-toggle').checked ? '' : 'none';
+        messageContent.appendChild(romanjiText);
+    }
+
+    // Add translation if available
+    if (data.translation) {
+        const translationText = document.createElement('div');
+        translationText.textContent = data.translation;
+        translationText.classList.add('translation-text');
+        if (data.targetLang === 'en') {
+            translationText.classList.add('en-text');
+            translationText.style.display = document.getElementById('en-toggle').checked ? '' : 'none';
+        } else if (data.targetLang === 'ja') {
+            translationText.classList.add('jp-text');
+            translationText.style.display = document.getElementById('jp-toggle').checked ? '' : 'none';
+        }
+        messageContent.appendChild(translationText);
+    }
+
+    messageElement.appendChild(messageContent);
     chatMessages.appendChild(messageElement);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 });
@@ -128,6 +177,30 @@ socket.on('user-left', (username) => {
     messageElement.textContent = `${username} left the room`;
     chatMessages.appendChild(messageElement);
 });
+
+// Update message visibility function
+function updateMessageVisibility() {
+    const showEn = document.getElementById('en-toggle').checked;
+    const showJp = document.getElementById('jp-toggle').checked;
+    const showRp = document.getElementById('rp-toggle').checked;
+
+    document.querySelectorAll('.message').forEach(message => {
+        message.querySelectorAll('.en-text').forEach(text => {
+            text.style.display = showEn ? '' : 'none';
+        });
+        message.querySelectorAll('.jp-text').forEach(text => {
+            text.style.display = showJp ? '' : 'none';
+        });
+        message.querySelectorAll('.rp-text').forEach(text => {
+            text.style.display = showRp ? '' : 'none';
+        });
+    });
+}
+
+// Event listeners for toggles
+document.getElementById('en-toggle').addEventListener('change', updateMessageVisibility);
+document.getElementById('jp-toggle').addEventListener('change', updateMessageVisibility);
+document.getElementById('rp-toggle').addEventListener('change', updateMessageVisibility);
 
 // Function to send message with connection check
 function sendMessage() {

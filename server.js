@@ -185,6 +185,57 @@ async function detectLanguage(text) {
     }
 }
 
+// Function to convert Japanese text to romanji
+async function toRomanji(text) {
+    try {
+        const response = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo",
+            messages: [
+                {
+                    role: "system",
+                    content: "You are a Japanese to Romanji translator. Convert the given Japanese text to Romanji. Only respond with the romanji, nothing else. Use Hepburn romanization system."
+                },
+                {
+                    role: "user",
+                    content: text
+                }
+            ],
+            temperature: 0.3,
+            max_tokens: 100
+        });
+        console.log('Romanji translation:', response.choices[0].message.content);
+        return response.choices[0].message.content.trim();
+    } catch (error) {
+        console.error('Error converting to romanji:', error);
+        return null;
+    }
+}
+
+// Function to convert Japanese text to romanji
+// async function toRomanji(text) {
+//     try {
+//         const response = await openai.chat.completions.create({
+//             model: "gpt-3.5-turbo",
+//             messages: [
+//                 {
+//                     role: "system",
+//                     content: "You are a Japanese to Romanji translator. Convert the given Japanese text to Romanji. Only respond with the romanji, nothing else."
+//                 },
+//                 {
+//                     role: "user",
+//                     content: text
+//                 }
+//             ],
+//             temperature: 0.3,
+//             max_tokens: 100
+//         });
+//         return response.choices[0].message.content.trim();
+//     } catch (error) {
+//         console.error('Error converting to romanji:', error);
+//         return null;
+//     }
+// }
+
 // Translation cache
 const translationCache = new Map();
 
@@ -324,16 +375,27 @@ io.on('connection', (socket) => {
         const room = rooms.get(roomId);
         if (!room) return;
 
+        console.log('Processing message:', message);
+
         // Detect the language of the message
         const detectedLang = await detectLanguage(message);
+        console.log('Detected language:', detectedLang);
         
         // Initialize translation object
         const translations = {
             original: message,
             translated: null,
+            romanji: null,
             sourceLang: detectedLang,
             targetLang: null
         };
+
+        // If message is in Japanese, get romanji
+        if (detectedLang === 'ja') {
+            console.log('Getting romanji for Japanese text');
+            translations.romanji = await toRomanji(message);
+            console.log('Romanji result:', translations.romanji);
+        }
 
         // Translate if the message is in English or Japanese
         if (detectedLang === 'en' || detectedLang === 'ja') {
@@ -342,16 +404,21 @@ io.on('connection', (socket) => {
             translations.targetLang = targetLang;
         }
 
+        console.log('Final translations:', translations);
+
         // Add message to room history
-        room.messages.push({
+        const messageData = {
             username,
             message: translations.original,
             translation: translations.translated,
+            romanji: translations.romanji,
             sourceLang: translations.sourceLang,
             targetLang: translations.targetLang,
             color: userColor,
             timestamp: new Date()
-        });
+        };
+
+        room.messages.push(messageData);
 
         // Trim message history if needed
         if (room.messages.length > 100) {
@@ -359,14 +426,7 @@ io.on('connection', (socket) => {
         }
 
         // Broadcast message to all users in the room
-        io.to(roomId).emit('chat-message', {
-            username,
-            message: translations.original,
-            translation: translations.translated,
-            sourceLang: translations.sourceLang,
-            targetLang: translations.targetLang,
-            color: userColor
-        });
+        io.to(roomId).emit('chat-message', messageData);
     });
     
     socket.on('disconnect', () => {
