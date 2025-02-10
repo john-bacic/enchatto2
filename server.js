@@ -364,55 +364,51 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('chat-message', async (roomId, message) => {
-        if (!currentRoom || !username) return;
+    // Handle chat messages with acknowledgment
+    socket.on('chat-message', (roomId, message, callback) => {
+        console.log('Received message:', { roomId, message, from: username });
         
-        const room = rooms.get(roomId);
-        if (!room) return;
-
-        // Detect the language of the message
-        const detectedLang = await detectLanguage(message);
-        
-        // Initialize translation object
-        const translations = {
-            original: message,
-            translated: null,
-            sourceLang: detectedLang,
-            targetLang: null
-        };
-
-        // Translate if the message is in English or Japanese
-        if (detectedLang === 'en' || detectedLang === 'ja') {
-            const targetLang = detectedLang === 'en' ? 'ja' : 'en';
-            translations.translated = await translateText(message, targetLang);
-            translations.targetLang = targetLang;
+        // Validate room and user
+        if (!roomId || !message) {
+            console.log('Invalid message data');
+            if (callback) callback('Invalid message data');
+            return;
         }
 
-        // Add message to room history
-        room.messages.push({
-            username,
-            message: translations.original,
-            translation: translations.translated,
-            sourceLang: translations.sourceLang,
-            targetLang: translations.targetLang,
-            color: userColor,
-            timestamp: new Date()
-        });
+        const room = rooms.get(roomId);
+        if (!room) {
+            console.log('Room not found:', roomId);
+            if (callback) callback('Room not found');
+            return;
+        }
 
-        // Trim message history if needed
+        if (!username) {
+            console.log('No username found for socket:', socket.id);
+            if (callback) callback('Not properly connected to room');
+            return;
+        }
+
+        // Create message object
+        const messageData = {
+            username,
+            message,
+            color: userColor,
+            timestamp: new Date().toISOString()
+        };
+
+        // Store in room history
+        room.messages.push(messageData);
         if (room.messages.length > 100) {
             room.messages = room.messages.slice(-100);
         }
 
-        // Broadcast message to all users in the room
-        io.to(roomId).emit('chat-message', {
-            username,
-            message: translations.original,
-            translation: translations.translated,
-            sourceLang: translations.sourceLang,
-            targetLang: translations.targetLang,
-            color: userColor
-        });
+        // Broadcast to room
+        io.to(roomId).emit('chat-message', messageData);
+
+        // Acknowledge successful send
+        if (callback) callback(null);
+        
+        console.log('Message broadcast to room:', roomId);
     });
     
     // Enhanced disconnect handling

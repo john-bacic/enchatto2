@@ -3,7 +3,8 @@ const socket = io({
     reconnectionAttempts: 10,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
-    timeout: 20000
+    timeout: 20000,
+    autoConnect: true
 });
 
 let currentRoom = null;
@@ -22,6 +23,13 @@ const roomNumber = document.getElementById('room-number');
 const messageInput = document.getElementById('message-input');
 const sendBtn = document.getElementById('send-btn');
 const chatMessages = document.getElementById('chat-messages');
+
+// Debug logging
+function debugLog(message, data = null) {
+    const timestamp = new Date().toISOString();
+    const logMessage = data ? `${message} ${JSON.stringify(data)}` : message;
+    console.log(`[${timestamp}] ${logMessage}`);
+}
 
 // Handle visibility change with improved logging
 document.addEventListener("visibilitychange", () => {
@@ -97,6 +105,47 @@ function showSystemMessage(message) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+// Enhanced message sending with connection check and logging
+function sendMessage() {
+    const message = messageInput.value.trim();
+    debugLog('Attempting to send message:', { message, currentRoom, connected: socket.connected });
+
+    if (!message) {
+        debugLog('Message empty, not sending');
+        return;
+    }
+
+    if (!currentRoom) {
+        debugLog('No current room, cannot send message');
+        showSystemMessage("Error: Not connected to a room");
+        return;
+    }
+
+    if (!socket.connected) {
+        debugLog('Socket disconnected, queueing message');
+        showSystemMessage("Cannot send message - attempting to reconnect...");
+        
+        const queuedMessage = message;
+        socket.once('reconnect', () => {
+            debugLog('Reconnected, sending queued message');
+            socket.emit('chat-message', currentRoom, queuedMessage);
+            messageInput.value = '';
+        });
+        return;
+    }
+
+    debugLog('Emitting chat message');
+    socket.emit('chat-message', currentRoom, message, (error) => {
+        if (error) {
+            debugLog('Error sending message:', error);
+            showSystemMessage("Error sending message. Please try again.");
+            return;
+        }
+        debugLog('Message sent successfully');
+        messageInput.value = '';
+    });
+}
+
 // Event Listeners
 createRoomBtn.addEventListener('click', () => {
     socket.emit('create-room');
@@ -116,7 +165,10 @@ messageInput.addEventListener('keypress', (e) => {
     }
 });
 
-sendBtn.addEventListener('click', sendMessage);
+sendBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    sendMessage();
+});
 
 // Store room information when joining
 socket.on('room-joined', (roomId, userData) => {
@@ -138,15 +190,39 @@ socket.on('room-created', (roomId) => {
     chatScreen.style.display = 'block';
 });
 
-socket.on('chat-message', (username, message) => {
+// Socket event handlers with logging
+socket.on('chat-message', (data) => {
+    debugLog('Received chat message:', data);
     const messageElement = document.createElement('div');
     messageElement.classList.add('message');
     messageElement.innerHTML = `
-        <span class="username">${username}</span>
-        <span class="message-text">${message}</span>
+        <span class="username">${data.username}</span>
+        <span class="message-text">${data.message}</span>
     `;
     chatMessages.appendChild(messageElement);
     chatMessages.scrollTop = chatMessages.scrollHeight;
+});
+
+socket.on('connect', () => {
+    debugLog('Socket connected:', socket.id);
+    showSystemMessage("Connected to chat server");
+    if (lastKnownRoom) {
+        debugLog('Attempting to rejoin room:', lastKnownRoom);
+        socket.emit('rejoin-room', {
+            room: lastKnownRoom,
+            username: lastKnownUsername
+        });
+    }
+});
+
+socket.on('disconnect', (reason) => {
+    debugLog('Socket disconnected:', reason);
+    showSystemMessage("Disconnected from chat server");
+});
+
+socket.on('error', (error) => {
+    debugLog('Socket error:', error);
+    showSystemMessage("Error: " + error);
 });
 
 socket.on('user-joined', (username) => {
@@ -162,33 +238,6 @@ socket.on('user-left', (username) => {
     messageElement.textContent = `${username} left the room`;
     chatMessages.appendChild(messageElement);
 });
-
-// Enhanced message sending with connection check
-function sendMessage() {
-    const message = messageInput.value.trim();
-    if (!message) return;
-
-    if (!socket.connected) {
-        console.log("Cannot send message - socket disconnected");
-        showSystemMessage("Cannot send message - attempting to reconnect...");
-        
-        // Queue message to be sent after reconnection
-        const queuedMessage = message;
-        socket.once('reconnect', () => {
-            if (currentRoom) {
-                socket.emit('chat-message', currentRoom, queuedMessage);
-                messageInput.value = '';
-                console.log("Queued message sent after reconnection");
-            }
-        });
-        return;
-    }
-
-    if (currentRoom) {
-        socket.emit('chat-message', currentRoom, message);
-        messageInput.value = '';
-    }
-}
 
 // Keep connection alive with ping/pong
 setInterval(() => {
