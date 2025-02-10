@@ -193,7 +193,7 @@ async function toRomanji(text) {
             messages: [
                 {
                     role: "system",
-                    content: "You are a Japanese to Romanji translator. Convert the given Japanese text to Romanji. Only respond with the romanji, nothing else. Use Hepburn romanization system."
+                    content: "You are a Japanese to Romanji translator. Convert the given Japanese text to Romanji using the Hepburn system. Only respond with the romanji, nothing else. Example: こんにちは -> konnichiwa"
                 },
                 {
                     role: "user",
@@ -203,8 +203,9 @@ async function toRomanji(text) {
             temperature: 0.3,
             max_tokens: 100
         });
-        console.log('Romanji translation:', response.choices[0].message.content);
-        return response.choices[0].message.content.trim();
+        const romanji = response.choices[0].message.content.trim();
+        console.log('Romanji translation for:', text, '->', romanji);
+        return romanji;
     } catch (error) {
         console.error('Error converting to romanji:', error);
         return null;
@@ -390,43 +391,47 @@ io.on('connection', (socket) => {
             targetLang: null
         };
 
-        // If message is in Japanese, get romanji
-        if (detectedLang === 'ja') {
-            console.log('Getting romanji for Japanese text');
-            translations.romanji = await toRomanji(message);
-            console.log('Romanji result:', translations.romanji);
+        try {
+            // If message is in Japanese, get romanji
+            if (detectedLang === 'ja') {
+                console.log('Getting romanji for Japanese text:', message);
+                translations.romanji = await toRomanji(message);
+                console.log('Romanji result:', translations.romanji);
+            }
+
+            // Translate if the message is in English or Japanese
+            if (detectedLang === 'en' || detectedLang === 'ja') {
+                const targetLang = detectedLang === 'en' ? 'ja' : 'en';
+                translations.translated = await translateText(message, targetLang);
+                translations.targetLang = targetLang;
+            }
+
+            console.log('Final translations:', translations);
+
+            // Add message to room history
+            const messageData = {
+                username,
+                message: translations.original,
+                translation: translations.translated,
+                romanji: translations.romanji,
+                sourceLang: translations.sourceLang,
+                targetLang: translations.targetLang,
+                color: userColor,
+                timestamp: new Date()
+            };
+
+            room.messages.push(messageData);
+
+            // Trim message history if needed
+            if (room.messages.length > 100) {
+                room.messages = room.messages.slice(-100);
+            }
+
+            // Broadcast message to all users in the room
+            io.to(roomId).emit('chat-message', messageData);
+        } catch (error) {
+            console.error('Error processing message:', error);
         }
-
-        // Translate if the message is in English or Japanese
-        if (detectedLang === 'en' || detectedLang === 'ja') {
-            const targetLang = detectedLang === 'en' ? 'ja' : 'en';
-            translations.translated = await translateText(message, targetLang);
-            translations.targetLang = targetLang;
-        }
-
-        console.log('Final translations:', translations);
-
-        // Add message to room history
-        const messageData = {
-            username,
-            message: translations.original,
-            translation: translations.translated,
-            romanji: translations.romanji,
-            sourceLang: translations.sourceLang,
-            targetLang: translations.targetLang,
-            color: userColor,
-            timestamp: new Date()
-        };
-
-        room.messages.push(messageData);
-
-        // Trim message history if needed
-        if (room.messages.length > 100) {
-            room.messages = room.messages.slice(-100);
-        }
-
-        // Broadcast message to all users in the room
-        io.to(roomId).emit('chat-message', messageData);
     });
     
     socket.on('disconnect', () => {

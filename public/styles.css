@@ -394,10 +394,14 @@ body {
 }
 
 .message .rp-text {
-    color: var(--color-text-muted);
+    color: #FFC107;
     font-size: 0.9em;
-    margin-top: 2px;
+    margin-top: 4px;
+    margin-bottom: 4px;
     font-style: italic;
+    opacity: 0.9;
+    padding-left: 8px;
+    border-left: 2px solid #FFC107;
 }
 
 .translation-text {
@@ -416,16 +420,18 @@ body {
 .toggle {
     display: inline-flex;
     align-items: center;
-    padding: 4px 8px;
-    background: var(--color-bg);
+    padding: 6px 12px;
+    background: var(--color-bg-dark);
+    border: 1px solid var(--color-message-border);
     border-radius: 12px;
     cursor: pointer;
     user-select: none;
     transition: all 0.2s ease;
+    opacity: 0.5;
 }
 
 .toggle:hover {
-    background: var(--color-bg-dark);
+    opacity: 0.8;
 }
 
 .toggle input {
@@ -433,14 +439,35 @@ body {
 }
 
 .toggle span {
-    font-size: 12px;
-    font-weight: 500;
+    font-size: 13px;
+    font-weight: 600;
     color: var(--color-text-muted);
-    transition: color 0.2s ease;
+    transition: all 0.2s ease;
 }
 
 .toggle input:checked + span {
     color: var(--color-text);
+}
+
+.toggle input:checked {
+    opacity: 1;
+}
+
+.toggle[for="en-toggle"] input:checked + span {
+    color: #4CAF50;
+}
+
+.toggle[for="jp-toggle"] input:checked + span {
+    color: #2196F3;
+}
+
+.toggle[for="rp-toggle"] input:checked + span {
+    color: #FFC107;
+}
+
+.toggle input:checked {
+    background: var(--color-bg);
+    opacity: 1;
 }
 
 .message-input-container {
