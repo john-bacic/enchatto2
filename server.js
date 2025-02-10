@@ -1,7 +1,15 @@
 const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
-const io = require('socket.io')(http);
+const io = require('socket.io')(http, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    },
+    pingTimeout: 30000,
+    pingInterval: 25000,
+    transports: ['websocket', 'polling']
+});
 const path = require('path');
 const QRCode = require('qrcode');
 const OpenAI = require('openai');
@@ -227,6 +235,11 @@ io.on('connection', (socket) => {
     let username = null;
     let userColor = null;
 
+    // Handle ping
+    socket.on('ping', () => {
+        socket.emit('pong');
+    });
+
     socket.on('join-room', (roomId, isHost, storedName, storedColor) => {
         console.log('User joining room:', roomId, 'as host:', isHost, 'with stored name:', storedName, 'color:', storedColor);
         
@@ -236,10 +249,17 @@ io.on('connection', (socket) => {
         }
         
         // Get or create room
-        const room = rooms.get(roomId);
+        let room = rooms.get(roomId);
         if (!room) {
-            socket.emit('error', 'Room not found');
-            return;
+            room = {
+                hostId: null,
+                hostName: null,
+                guestCount: 0,
+                messages: [],
+                users: new Map(),
+                colors: new Map()
+            };
+            rooms.set(roomId, room);
         }
         
         // Reset user state before joining new room
