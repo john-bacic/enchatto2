@@ -3,8 +3,11 @@ const socket = io({
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
     timeout: 10000,
-    autoConnect: true
+    autoConnect: true,
+    transports: ['websocket', 'polling']
 });
+
+console.log('Initializing socket connection...');
 
 let currentRoom = null;
 let username = null;
@@ -18,9 +21,9 @@ const createRoomBtn = document.getElementById('create-room-btn');
 const joinRoomBtn = document.getElementById('join-room-btn');
 const roomInput = document.getElementById('room-input');
 const roomNumber = document.getElementById('room-number');
-const messageInput = document.getElementById('message-input');
-const sendBtn = document.getElementById('send-btn');
-const chatMessages = document.getElementById('chat-messages');
+const messageInput = document.getElementById('message-text');
+const sendBtn = document.getElementById('send-button');
+const messages = document.getElementById('messages');
 
 // Handle visibility change
 document.addEventListener('visibilitychange', function() {
@@ -41,7 +44,7 @@ document.addEventListener('visibilitychange', function() {
 
 // Handle socket reconnection
 socket.on('connect', () => {
-    console.log('Socket connected:', socket.id);
+    console.log('Socket connected!', socket.id);
     if (lastKnownRoom) {
         console.log('Rejoining room after reconnect:', lastKnownRoom);
         socket.emit('join-room', lastKnownRoom, false, lastKnownUsername);
@@ -53,7 +56,7 @@ socket.on('disconnect', () => {
 });
 
 socket.on('connect_error', (error) => {
-    console.log('Connection error:', error);
+    console.error('Socket connection error:', error);
     // Try to reconnect
     setTimeout(() => {
         if (!socket.connected) {
@@ -61,6 +64,10 @@ socket.on('connect_error', (error) => {
             socket.connect();
         }
     }, 2000);
+});
+
+socket.on('error', (error) => {
+    console.error('Socket error:', error);
 });
 
 // Event Listeners
@@ -75,16 +82,81 @@ joinRoomBtn.addEventListener('click', () => {
     }
 });
 
-messageInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
+// Function to create a message element with consistent structure
+function createMessageElement(data, isSystem = false) {
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('message');
+    
+    if (isSystem) {
+        messageElement.classList.add('system-message');
+    } else if (data.username === username) {
+        messageElement.classList.add('own-message');
     }
+
+    // Create message content container
+    const messageContent = document.createElement('div');
+    messageContent.classList.add('message-content');
+
+    if (!isSystem) {
+        // Add username with color
+        const usernameSpan = document.createElement('span');
+        usernameSpan.classList.add('username');
+        usernameSpan.style.color = data.color;
+        usernameSpan.textContent = data.username;
+        messageContent.appendChild(usernameSpan);
+
+        // Create text container for better spacing
+        const textContainer = document.createElement('div');
+        textContainer.classList.add('text-container');
+
+        // Original message (English or Japanese)
+        const originalText = document.createElement('div');
+        originalText.classList.add('text', data.sourceLang === 'en' ? 'en-text' : 'jp-text');
+        originalText.textContent = data.message;
+        originalText.style.display = document.getElementById(`${data.sourceLang}-toggle`).checked ? '' : 'none';
+        textContainer.appendChild(originalText);
+
+        // Translation and romanji
+        if (data.translation) {
+            // Translation text
+            const translationText = document.createElement('div');
+            translationText.classList.add('text', data.targetLang === 'en' ? 'en-text' : 'jp-text');
+            translationText.textContent = data.translation;
+            translationText.style.display = document.getElementById(`${data.targetLang}-toggle`).checked ? '' : 'none';
+            textContainer.appendChild(translationText);
+
+            // Add romanji if we have it
+            if (data.romanji) {
+                console.log('Adding romanji:', data.romanji);
+                const rpText = document.createElement('div');
+                rpText.classList.add('text', 'rp-text');
+                rpText.textContent = data.romanji;
+                rpText.style.display = document.getElementById('rp-toggle').checked ? '' : 'none';
+                textContainer.appendChild(rpText);
+            }
+        }
+
+        messageContent.appendChild(textContainer);
+    } else {
+        // System message
+        const enText = document.createElement('div');
+        enText.classList.add('text', 'en-text');
+        enText.textContent = data;
+        messageContent.appendChild(enText);
+    }
+
+    messageElement.appendChild(messageContent);
+    return messageElement;
+}
+
+// Socket event handlers
+socket.on('chat-message', (data) => {
+    console.log('Received message data:', JSON.stringify(data, null, 2));
+    const messageElement = createMessageElement(data);
+    messages.appendChild(messageElement);
+    messages.scrollTop = messages.scrollHeight;
 });
 
-sendBtn.addEventListener('click', sendMessage);
-
-// Store room information when joining
 socket.on('room-joined', (roomId, userData) => {
     currentRoom = roomId;
     lastKnownRoom = roomId;
@@ -104,97 +176,49 @@ socket.on('room-created', (roomId) => {
     chatScreen.style.display = 'block';
 });
 
-socket.on('chat-message', (data) => {
-    const messageElement = document.createElement('div');
-    messageElement.classList.add('message');
-    
-    // Add own-message class if it's our message
-    if (data.username === username) {
-        messageElement.classList.add('own-message');
-    }
-
-    // Create message content container
-    const messageContent = document.createElement('div');
-    messageContent.classList.add('message-content');
-
-    // Add username with color
-    const usernameSpan = document.createElement('span');
-    usernameSpan.style.color = data.color;
-    usernameSpan.textContent = data.username;
-    messageContent.appendChild(usernameSpan);
-
-    // Add original message
-    const originalText = document.createElement('div');
-    originalText.textContent = data.message;
-    if (data.sourceLang === 'en') {
-        originalText.classList.add('en-text');
-        originalText.style.display = document.getElementById('en-toggle').checked ? '' : 'none';
-    } else if (data.sourceLang === 'ja') {
-        originalText.classList.add('jp-text');
-        originalText.style.display = document.getElementById('jp-toggle').checked ? '' : 'none';
-    }
-    messageContent.appendChild(originalText);
-
-    // Add romanji if available
-    if (data.romanji && data.sourceLang === 'ja') {
-        const romanjiText = document.createElement('div');
-        romanjiText.textContent = data.romanji;
-        romanjiText.classList.add('rp-text');
-        romanjiText.style.display = document.getElementById('rp-toggle').checked ? '' : 'none';
-        messageContent.appendChild(romanjiText);
-    }
-
-    // Add translation if available
-    if (data.translation) {
-        const translationText = document.createElement('div');
-        translationText.textContent = data.translation;
-        translationText.classList.add('translation-text');
-        if (data.targetLang === 'en') {
-            translationText.classList.add('en-text');
-            translationText.style.display = document.getElementById('en-toggle').checked ? '' : 'none';
-        } else if (data.targetLang === 'ja') {
-            translationText.classList.add('jp-text');
-            translationText.style.display = document.getElementById('jp-toggle').checked ? '' : 'none';
-        }
-        messageContent.appendChild(translationText);
-    }
-
-    messageElement.appendChild(messageContent);
-    chatMessages.appendChild(messageElement);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-});
-
-socket.on('user-joined', (username) => {
-    const messageElement = document.createElement('div');
-    messageElement.classList.add('system-message');
-    messageElement.textContent = `${username} joined the room`;
-    chatMessages.appendChild(messageElement);
-});
-
-socket.on('user-left', (username) => {
-    const messageElement = document.createElement('div');
-    messageElement.classList.add('system-message');
-    messageElement.textContent = `${username} left the room`;
-    chatMessages.appendChild(messageElement);
-});
-
 // Update message visibility function
 function updateMessageVisibility() {
+    console.log('=== START VISIBILITY UPDATE ===');
     const showEn = document.getElementById('en-toggle').checked;
     const showJp = document.getElementById('jp-toggle').checked;
     const showRp = document.getElementById('rp-toggle').checked;
 
-    document.querySelectorAll('.message').forEach(message => {
-        message.querySelectorAll('.en-text').forEach(text => {
-            text.style.display = showEn ? '' : 'none';
-        });
-        message.querySelectorAll('.jp-text').forEach(text => {
-            text.style.display = showJp ? '' : 'none';
-        });
-        message.querySelectorAll('.rp-text').forEach(text => {
-            text.style.display = showRp ? '' : 'none';
-        });
+    console.log('Toggle states:', { showEn, showJp, showRp });
+
+    document.querySelectorAll('.message').forEach((message, index) => {
+        console.log(`Processing message ${index}:`);
+        const enText = message.querySelector('.en-text');
+        const jpText = message.querySelector('.jp-text');
+        const rpText = message.querySelector('.rp-text');
+
+        if (enText) {
+            console.log('English text:', {
+                content: enText.textContent,
+                visible: showEn
+            });
+            enText.style.display = showEn ? '' : 'none';
+        }
+        
+        if (jpText) {
+            console.log('Japanese text:', {
+                content: jpText.textContent,
+                visible: showJp
+            });
+            jpText.style.display = showJp ? '' : 'none';
+        }
+        
+        if (rpText) {
+            console.log('Romanji text:', {
+                content: rpText.textContent,
+                visible: showRp && rpText.textContent.trim() !== '',
+                hasContent: rpText.textContent.trim() !== ''
+            });
+            rpText.style.display = showRp && rpText.textContent.trim() !== '' ? '' : 'none';
+        } else {
+            console.log('No romanji text element found');
+        }
     });
+    console.log('=== END VISIBILITY UPDATE ===');
 }
 
 // Event listeners for toggles
@@ -202,39 +226,31 @@ document.getElementById('en-toggle').addEventListener('change', updateMessageVis
 document.getElementById('jp-toggle').addEventListener('change', updateMessageVisibility);
 document.getElementById('rp-toggle').addEventListener('change', updateMessageVisibility);
 
-// Function to send message with connection check
+// Function to send message
 function sendMessage() {
-    const message = messageInput.value.trim();
-    if (!message) return;
-
-    if (!socket.connected) {
-        console.log('Socket disconnected, attempting to reconnect...');
-        socket.connect();
-        
-        // Show reconnecting message to user
-        const messageElement = document.createElement('div');
-        messageElement.classList.add('system-message');
-        messageElement.textContent = 'Reconnecting...';
-        chatMessages.appendChild(messageElement);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        
-        // Wait for reconnection
-        socket.once('connect', () => {
-            // Rejoin room and then send message
-            socket.emit('join-room', lastKnownRoom, false, lastKnownUsername, () => {
-                socket.emit('chat-message', lastKnownRoom, message);
-                messageInput.value = '';
-            });
-        });
-        return;
-    }
-
-    // Normal send if connected
-    if (currentRoom) {
-        socket.emit('chat-message', currentRoom, message);
+    const messageText = messageInput.value.trim();
+    if (messageText && socket.connected) {
+        socket.emit('chat-message', currentRoom, messageText);
         messageInput.value = '';
     }
 }
+
+// Event listener for message input
+messageInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        sendMessage();
+    }
+});
+
+socket.on('user-joined', (username) => {
+    const messageElement = createMessageElement(`${username} joined the room`, true);
+    messages.appendChild(messageElement);
+});
+
+socket.on('user-left', (username) => {
+    const messageElement = createMessageElement(`${username} left the room`, true);
+    messages.appendChild(messageElement);
+});
 
 // Keep socket alive
 setInterval(() => {

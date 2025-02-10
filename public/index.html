@@ -315,7 +315,7 @@
             usernameSpan.style.color = msg.color;
             messageElement.appendChild(usernameSpan);
 
-            // Create message container to hold both original and translated text
+            // Create message container to hold all text
             const messageContent = document.createElement('div');
             messageContent.className = 'message-content';
             messageElement.appendChild(messageContent);
@@ -332,9 +332,6 @@
             } else if (msg.sourceLang === 'ja') {
                 originalText.classList.add('jp-text');
                 originalText.style.display = showJpCheckbox.checked ? '' : 'none';
-            } else if (msg.sourceLang === 'rp') {
-                originalText.classList.add('rp-text');
-                originalText.style.display = showRpCheckbox.checked ? '' : 'none';
             }
             messageContent.appendChild(originalText);
 
@@ -351,11 +348,18 @@
                 } else if (msg.targetLang === 'ja') {
                     translationText.classList.add('jp-text');
                     translationText.style.display = showJpCheckbox.checked ? '' : 'none';
-                } else if (msg.targetLang === 'rp') {
-                    translationText.classList.add('rp-text');
-                    translationText.style.display = showRpCheckbox.checked ? '' : 'none';
                 }
                 messageContent.appendChild(translationText);
+            }
+
+            // Handle romanji if available for Japanese text
+            if (msg.sourceLang === 'ja' && msg.romanji) {
+                console.log('Adding romanji:', msg.romanji);
+                const romanjiText = document.createElement('span');
+                romanjiText.className = 'text rp-text';
+                romanjiText.textContent = msg.romanji;
+                romanjiText.style.display = showRpCheckbox.checked ? '' : 'none';
+                messageContent.appendChild(romanjiText);
             }
 
             return messageElement;
