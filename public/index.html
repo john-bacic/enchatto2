@@ -569,8 +569,22 @@
     socket.on('reconnect', () => {
       console.log('Reconnected to server');
       // Rejoin room with stored info
-      // (Note: storedName and storedColor should be defined in this scope or handled appropriately)
       socket.emit('join-room', roomId, isHost);
+    });
+
+    // *** New: Listen for when the page becomes visible again ***
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) {
+        console.log('Page is visible, rejoining room.');
+        if (!socket.connected) {
+          socket.connect();
+        } else {
+          // If already connected, rejoin the room with current user info
+          if (username) {
+            socket.emit('join-room', roomId, isHost, username, userColor);
+          }
+        }
+      }
     });
   </script>
 </body>
