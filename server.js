@@ -185,34 +185,75 @@ async function detectLanguage(text) {
     }
 }
 
-// Function to convert Japanese text to romanji using OpenAI
+// Function to convert Japanese text to romanji
 async function toRomanji(text) {
     try {
-        console.log('Converting to romanji:', text);
-        const completion = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
+        console.log('\n=== Starting Romanji Translation ===');
+        console.log('Input text:', text);
+        
+        if (!process.env.OPENAI_API_KEY) {
+            console.error('OpenAI API key is missing!');
+            return '';
+        }
+        
+        console.log('Making OpenAI API request...');
+        const response = await openai.chat.completions.create({
+            model: "gpt-4-turbo",
             messages: [
                 {
                     role: "system",
-                    content: "You are a Japanese language expert. Convert the Japanese text to romanji. Only respond with the romanji, nothing else."
+                    content: "You are a Japanese to Romanji translator. Convert the given Japanese text to Romanji using the Hepburn system. Only respond with the romanji, nothing else. Do not include any arrows or other symbols. Example input: こんにちは Example output: konnichiwa"
                 },
                 {
                     role: "user",
                     content: text
                 }
             ],
-            temperature: 0,
+            temperature: 0.3,
             max_tokens: 100
         });
-
-        const romanji = completion.choices[0].message.content.trim();
-        console.log('Romanji conversion result:', romanji);
+        
+        console.log('OpenAI API response received');
+        console.log('Full response:', JSON.stringify(response, null, 2));
+        
+        const romanji = response.choices[0].message.content.trim();
+        console.log('Extracted romanji:', romanji);
+        console.log('=== End Romanji Translation ===\n');
+        
         return romanji;
     } catch (error) {
-        console.error('Error converting to romanji:', error);
-        return null;
+        console.error('Error in toRomanji:', error);
+        if (error.response) {
+            console.error('OpenAI API Error:', error.response.data);
+        }
+        return '';
     }
 }
+
+// Function to convert Japanese text to romanji
+// async function toRomanji(text) {
+//     try {
+//         const response = await openai.chat.completions.create({
+//             model: "gpt-3.5-turbo",
+//             messages: [
+//                 {
+//                     role: "system",
+//                     content: "You are a Japanese to Romanji translator. Convert the given Japanese text to Romanji. Only respond with the romanji, nothing else."
+//                 },
+//                 {
+//                     role: "user",
+//                     content: text
+//                 }
+//             ],
+//             temperature: 0.3,
+//             max_tokens: 100
+//         });
+//         return response.choices[0].message.content.trim();
+//     } catch (error) {
+//         console.error('Error converting to romanji:', error);
+//         return null;
+//     }
+// }
 
 // Translation cache
 const translationCache = new Map();
@@ -283,70 +324,72 @@ io.on('connection', (socket) => {
         socket.emit('pong');
     });
 
-    socket.on('join-room', (roomId, isHost, storedName, storedColor) => {
-        console.log('User joining room:', roomId, 'as host:', isHost, 'with stored name:', storedName, 'color:', storedColor);
-        
-        // Leave current room if any
-        if (currentRoom) {
-            leaveCurrentRoom();
-        }
+    socket.on('join-room', async (roomId, isHost, requestedName, requestedColor) => {
+        console.log('\n=== User Joining Room ===');
+        console.log('Room ID:', roomId);
+        console.log('Is Host:', isHost);
+        console.log('Requested Name:', requestedName);
         
         // Get or create room
-        let room = rooms.get(roomId);
+        const room = rooms.get(roomId);
         if (!room) {
-            room = {
-                hostId: null,
-                hostName: null,
-                guestCount: 0,
-                messages: [],
-                users: new Map(),
-                colors: new Map()
-            };
-            rooms.set(roomId, room);
+            socket.emit('error', 'Room not found');
+            return;
         }
         
-        // Reset user state before joining new room
-        username = null;
-        userColor = null;
-        
-        // Set new username based on host/guest status
-        if (isHost) {
-            // If this is the original host (based on stored name), let them rejoin as host
-            const isOriginalHost = storedName === room.hostName;
-            if (room.hostId === null || isOriginalHost) {
-                username = storedName || 'Host';
-                userColor = HOST_COLOR;
-                room.hostId = socket.id;
-                room.hostName = storedName; // Store host name for future checks
-            } else {
-                // If someone else is host, join as guest
-                username = storedName || `Guest ${room.guestCount + 1}`;
-                userColor = storedColor || generateColor();
-                room.guestCount++;
+        // Leave current room if in one
+        if (currentRoom) {
+            socket.leave(currentRoom);
+            const oldRoom = rooms.get(currentRoom);
+            if (oldRoom) {
+                oldRoom.users.delete(socket.id);
+                // Notify other users
+                socket.to(currentRoom).emit('user-left', {
+                    username,
+                    color: userColor
+                });
             }
-        } else {
-            username = storedName || `Guest ${room.guestCount + 1}`;
-            userColor = storedColor || generateColor();
-            room.guestCount++;
         }
-
-        // Join the room
+        
+        // Join new room
         socket.join(roomId);
         currentRoom = roomId;
-
-        // Send username and color to the client
+        
+        // Assign username and color
+        if (isHost) {
+            username = requestedName || 'Host';
+            userColor = HOST_COLOR;
+            room.hostId = socket.id;
+        } else {
+            room.guestCount++;
+            username = requestedName || `Guest ${room.guestCount}`;
+            userColor = requestedColor || generateColor();
+        }
+        
+        // Add user to room
+        room.users.set(socket.id, { username, color: userColor });
+        room.colors.set(username, userColor);
+        
+        // Send user info back
         socket.emit('username-assigned', {
             username,
             color: userColor,
-            isHost: username === room.hostName // Tell client if they're the host
+            isHost
         });
-
-        // Notify others
-        socket.to(roomId).emit('user-joined', { username, color: userColor });
-
-        // Send recent messages
-        const recentMessages = room.messages.slice(-50);
-        socket.emit('recent-messages', recentMessages);
+        
+        // Send recent messages to the joining user
+        if (room.messages && room.messages.length > 0) {
+            console.log('Sending recent messages to new user:', room.messages.length, 'messages');
+            socket.emit('recent-messages', room.messages);
+        }
+        
+        // Notify other users
+        socket.to(roomId).emit('user-joined', {
+            username,
+            color: userColor
+        });
+        
+        console.log('=== User Join Complete ===\n');
     });
 
     socket.on('set-username', (roomId, requestedUsername) => {
@@ -386,85 +429,48 @@ io.on('connection', (socket) => {
                 targetLang: null
             };
 
-            console.log('\n=== Translation Process START ===');
+            console.log('\n=== Translation Process ===');
             console.log('Original message:', message);
             console.log('Detected language:', detectedLang);
 
-            try {
-                // Translate if the message is in English or Japanese
-                if (detectedLang === 'en' || detectedLang === 'ja') {
-                    console.log('\n=== Translation Flow ===');
-                    console.log('1. Input:', message);
-                    console.log('2. Detected Language:', detectedLang);
-                    
-                    const targetLang = detectedLang === 'en' ? 'ja' : 'en';
-                    console.log('3. Target Language:', targetLang);
-                    
-                    // Get the translation
-                    translations.translated = await translateText(message, targetLang);
-                    translations.targetLang = targetLang;
-                    console.log('4. Translation:', translations.translated);
+            // Translate if the message is in English or Japanese
+            if (detectedLang === 'en' || detectedLang === 'ja') {
+                const targetLang = detectedLang === 'en' ? 'ja' : 'en';
+                console.log('Target language:', targetLang);
+                
+                translations.translated = await translateText(message, targetLang);
+                translations.targetLang = targetLang;
+                console.log('Translated text:', translations.translated);
 
-                    // Always generate romanji for Japanese text
-                    if (detectedLang === 'ja') {
-                        // If original is Japanese, generate romanji from original
-                        console.log('5a. Generating romanji from ORIGINAL Japanese text');
-                        translations.romanji = await toRomanji(message);
-                        console.log('   Original text:', message);
-                        console.log('   Generated romanji:', translations.romanji);
-                    } else if (targetLang === 'ja' && translations.translated) {
-                        // If translation is Japanese, generate romanji from translation
-                        console.log('5b. Generating romanji from Japanese TRANSLATION');
-                        translations.romanji = await toRomanji(translations.translated);
-                        console.log('   Translation text:', translations.translated);
-                        console.log('   Generated romanji:', translations.romanji);
-                    } else if (detectedLang === 'en') {
-                        // For English messages, include a romanji placeholder
-                        console.log('5c. Adding romanji placeholder for English text');
-                        translations.romanji = '(romanji)';
-                        console.log('   Added placeholder romanji');
-                    }
-                    
-                    console.log('6. Final translations object:', translations);
-                    console.log('=== End Translation Flow ===\n');
+                // Get romanji for Japanese text
+                if (targetLang === 'ja') {
+                    // English to Japanese case
+                    console.log('Converting Japanese translation to romanji:', translations.translated);
+                    translations.romanji = await toRomanji(translations.translated);
+                } else if (detectedLang === 'ja') {
+                    // Japanese to English case
+                    console.log('Converting original Japanese text to romanji:', message);
+                    translations.romanji = await toRomanji(message);
                 }
-
-                // Log the final state
-                console.log('\nFinal translation state:');
-                console.log('- Original:', translations.original);
-                console.log('- Source Lang:', translations.sourceLang);
-                console.log('- Translation:', translations.translated);
-                console.log('- Target Lang:', translations.targetLang);
-                console.log('- Romanji:', translations.romanji);
-
-                // Emit the message with translations
-                const messageData = {
-                    username: username,
-                    message: translations.original,
-                    translation: translations.translated,
-                    romanji: translations.romanji,
-                    sourceLang: translations.sourceLang,
-                    targetLang: translations.targetLang,
-                    color: userColor,
-                    timestamp: new Date().toISOString()
-                };
-
-                console.log('\n=== Emitting Message Data ===');
-                console.log('Message:', messageData.message);
-                console.log('Translation:', messageData.translation);
-                console.log('Romanji:', messageData.romanji);
-                console.log('Source Lang:', messageData.sourceLang);
-                console.log('Target Lang:', messageData.targetLang);
-                console.log('============================\n');
-
-                io.to(roomId).emit('chat-message', messageData);
-                console.log('=== Translation Process COMPLETE ===\n');
-            } catch (error) {
-                console.error('Error during translation:', error);
-                socket.emit('error', 'Translation failed');
+                console.log('Generated romanji:', translations.romanji);
             }
 
+            console.log('Final translations:', JSON.stringify(translations, null, 2));
+
             // Add message to room history
+            const messageData = {
+                username: username,
+                message: translations.original,
+                translation: translations.translated,
+                romanji: translations.romanji,
+                sourceLang: translations.sourceLang,
+                targetLang: translations.targetLang,
+                color: userColor,
+                timestamp: new Date().toISOString()
+            };
+
+            console.log('Emitting message data:', JSON.stringify(messageData, null, 2));
+
             room.messages.push(messageData);
 
             // Trim message history if needed
@@ -473,7 +479,7 @@ io.on('connection', (socket) => {
             }
 
             // Broadcast message to all users in the room
-            // io.to(roomId).emit('chat-message', messageData);
+            io.to(roomId).emit('chat-message', messageData);
             console.log('=== Message Processing Complete ===\n');
         } catch (error) {
             console.error('Error processing message:', error);
