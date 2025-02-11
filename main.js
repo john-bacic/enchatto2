@@ -1,33 +1,84 @@
-// Listen for visibility changes to reinitialize the app when it becomes active
+// Mobile-friendly page visibility handling
+let visibilityTimeout;
+const VISIBILITY_TIMEOUT_DELAY = 60000; // 1 minute
+
+// Listen for visibility changes to manage app state
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) {
-    console.log('Page is visible—resuming app state.')
-    // Call your reinitialization logic here.
-    // For example, restart animations or timers:
+  if (document.hidden) {
+    console.log('Page hidden—maintaining connection...');
+    // Clear any existing timeout
+    if (visibilityTimeout) {
+      clearTimeout(visibilityTimeout);
+    }
+    
+    // Set a new timeout
+    visibilityTimeout = setTimeout(() => {
+      console.log('Long background duration—preparing for reconnect...');
+      // Store necessary state here if needed
+      if (typeof storeAppState === 'function') {
+        storeAppState();
+      }
+    }, VISIBILITY_TIMEOUT_DELAY);
+    
+  } else {
+    console.log('Page visible—checking connection status...');
+    // Clear timeout if it exists
+    if (visibilityTimeout) {
+      clearTimeout(visibilityTimeout);
+      visibilityTimeout = null;
+    }
+    
+    // Check socket connection
+    if (typeof socket !== 'undefined' && socket) {
+      if (!socket.connected) {
+        console.log('Socket disconnected—attempting reconnect...');
+        socket.connect();
+      } else {
+        console.log('Socket already connected.');
+      }
+    }
+    
+    // Reinitialize app if needed
     if (typeof reinitApp === 'function') {
-      reinitApp()
+      reinitApp();
     }
   }
-})
+});
 
-// Listen for the pageshow event to catch pages restored from BFCache (common in iOS)
-window.addEventListener('pageshow', (event) => {
-  if (event.persisted) {
-    console.log('Page restored from cache—reloading for a clean state.')
-    // Force a full page reload to avoid stale state/paused animations.
-    window.location.reload()
+// Handle mobile-specific events
+window.addEventListener('pagehide', (event) => {
+  console.log('Page hide event—storing state...');
+  if (typeof storeAppState === 'function') {
+    storeAppState();
   }
-})
+});
+
+window.addEventListener('pageshow', (event) => {
+  console.log('Page show event detected.');
+  if (event.persisted) {
+    console.log('Page restored from cache—checking connection...');
+    // Check socket connection
+    if (typeof socket !== 'undefined' && socket) {
+      if (!socket.connected) {
+        console.log('Socket disconnected—attempting reconnect...');
+        socket.connect();
+      }
+    }
+  }
+});
 
 // Example reinitialization function (customize this to your app)
 function reinitApp() {
-  // Restart your animation loop, timers, or any paused tasks here.
-  // Example:
-  if (
-    window.myAnimationLoop &&
-    typeof window.myAnimationLoop.resume === 'function'
-  ) {
-    window.myAnimationLoop.resume()
+  // Check socket connection
+  if (typeof socket !== 'undefined' && socket) {
+    if (!socket.connected) {
+      console.log('Socket disconnected during reinit—attempting reconnect...');
+      socket.connect();
+    }
   }
-  // Other reinit code...
+  
+  // Restart your animation loop, timers, or any paused tasks here
+  if (window.myAnimationLoop && typeof window.myAnimationLoop.resume === 'function') {
+    window.myAnimationLoop.resume();
+  }
 }

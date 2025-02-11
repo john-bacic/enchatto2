@@ -6,9 +6,13 @@ const io = require('socket.io')(http, {
         origin: "*",
         methods: ["GET", "POST"]
     },
-    pingTimeout: 30000,
+    pingTimeout: 60000,
     pingInterval: 25000,
-    transports: ['websocket', 'polling']
+    transports: ['websocket', 'polling'],
+    allowEIO3: true,
+    connectTimeout: 45000,
+    upgradeTimeout: 30000,
+    maxHttpBufferSize: 1e8
 });
 const path = require('path');
 const QRCode = require('qrcode');

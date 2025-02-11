@@ -1,10 +1,15 @@
 const socket = io({
     reconnection: true,
-    reconnectionAttempts: 5,
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
-    timeout: 10000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
     autoConnect: true,
-    transports: ['websocket', 'polling']
+    transports: ['websocket', 'polling'],
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    forceNew: false,
+    multiplex: true
 });
 
 console.log('Initializing socket connection...');
