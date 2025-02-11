@@ -26,8 +26,17 @@ const openai = new OpenAI({
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Store rooms
+// Store rooms with enhanced user tracking
 const rooms = new Map();
+
+// Store disconnected users with grace period
+const disconnectedUsers = new Map();
+
+// Grace period for reconnection (5 minutes)
+const GRACE_PERIOD = 5 * 60 * 1000;
+
+// Host color is always this blue
+const HOST_COLOR = '#1877f2';
 
 // Generate random room number (6 digits)
 function generateRoomNumber() {
@@ -56,8 +65,45 @@ function generateColor() {
     return colors[Math.floor(Math.random() * colors.length)];
 }
 
-// Host color is always this blue
-const HOST_COLOR = '#1877f2';
+// Store user state before disconnect
+function storeDisconnectedUser(room, socket) {
+    const user = room.users.get(socket.id);
+    if (user) {
+        const isHost = room.hostId === socket.id;
+        const userState = {
+            username: user.username,
+            color: user.color,
+            isHost: isHost,
+            roomId: room.roomId,
+            disconnectedAt: Date.now()
+        };
+        disconnectedUsers.set(user.username, userState);
+        return userState;
+    }
+    return null;
+}
+
+// Try to restore disconnected user
+function restoreUser(username, roomId) {
+    const userState = disconnectedUsers.get(username);
+    if (userState && 
+        userState.roomId === roomId && 
+        (Date.now() - userState.disconnectedAt) < GRACE_PERIOD) {
+        disconnectedUsers.delete(username);
+        return userState;
+    }
+    return null;
+}
+
+// Clean up disconnected users periodically
+setInterval(() => {
+    const now = Date.now();
+    for (const [username, state] of disconnectedUsers.entries()) {
+        if (now - state.disconnectedAt > GRACE_PERIOD) {
+            disconnectedUsers.delete(username);
+        }
+    }
+}, GRACE_PERIOD);
 
 // Root route - host page
 app.get('/', (req, res) => {
@@ -111,7 +157,8 @@ app.get('/room/:roomId', async (req, res) => {
                 guestCount: 0,
                 colors: new Map(),
                 hostId: null,  // Track the host's socket ID
-                hostName: hostName  // Store the host name
+                hostName: hostName,  // Store the host name
+                roomId: roomId
             });
         }
         
@@ -141,7 +188,8 @@ app.get('/api/room/:roomId', async (req, res) => {
             guestCount: 0,
             messages: [],
             users: new Map(),
-            colors: new Map()
+            colors: new Map(),
+            roomId: roomId
         };
         rooms.set(roomId, room);
 
@@ -335,64 +383,81 @@ io.on('connection', (socket) => {
         console.log('Requested Name:', requestedName);
         
         // Get or create room
-        const room = rooms.get(roomId);
+        let room = rooms.get(roomId);
         if (!room) {
             socket.emit('error', 'Room not found');
             return;
         }
+
+        // Check for existing session
+        const existingState = restoreUser(requestedName, roomId);
         
+        // Handle host joining/rejoining
+        if (isHost) {
+            if (room.hostId && !existingState?.isHost) {
+                socket.emit('error', 'Room already has a host');
+                return;
+            }
+            username = requestedName || 'Host';
+            userColor = HOST_COLOR;
+            room.hostId = socket.id;
+        } else {
+            // Handle guest joining/rejoining
+            if (existingState) {
+                // Restore previous guest session
+                username = existingState.username;
+                userColor = existingState.color;
+            } else {
+                // New guest
+                room.guestCount = (room.guestCount || 0) + 1;
+                username = requestedName || `Guest ${room.guestCount}`;
+                userColor = requestedColor || generateColor();
+            }
+        }
+
         // Leave current room if in one
         if (currentRoom) {
-            socket.leave(currentRoom);
             const oldRoom = rooms.get(currentRoom);
             if (oldRoom) {
+                // Store state before leaving
+                storeDisconnectedUser(oldRoom, socket);
                 oldRoom.users.delete(socket.id);
-                // Notify other users
                 socket.to(currentRoom).emit('user-left', {
                     username,
                     color: userColor
                 });
             }
+            await socket.leave(currentRoom);
         }
-        
+
         // Join new room
-        socket.join(roomId);
+        await socket.join(roomId);
         currentRoom = roomId;
         
-        // Assign username and color
-        if (isHost) {
-            username = requestedName || 'Host';
-            userColor = HOST_COLOR;
-            room.hostId = socket.id;
-        } else {
-            room.guestCount++;
-            username = requestedName || `Guest ${room.guestCount}`;
-            userColor = requestedColor || generateColor();
-        }
-        
-        // Add user to room
-        room.users.set(socket.id, { username, color: userColor });
-        room.colors.set(username, userColor);
-        
+        // Store user in room
+        room.users.set(socket.id, {
+            username,
+            color: userColor
+        });
+
         // Send user info back
         socket.emit('username-assigned', {
             username,
             color: userColor,
             isHost
         });
-        
-        // Send recent messages to the joining user
+
+        // Send recent messages
         if (room.messages && room.messages.length > 0) {
-            console.log('Sending recent messages to new user:', room.messages.length, 'messages');
             socket.emit('recent-messages', room.messages);
         }
-        
-        // Notify other users
+
+        // Notify others
         socket.to(roomId).emit('user-joined', {
             username,
             color: userColor
         });
-        
+
         console.log('=== User Join Complete ===\n');
     });
 
@@ -496,22 +561,26 @@ io.on('connection', (socket) => {
         if (currentRoom) {
             const room = rooms.get(currentRoom);
             if (room && room.users.has(socket.id)) {
-                const user = room.users.get(socket.id);
+                // Store user state before disconnect
+                const userState = storeDisconnectedUser(room, socket);
                 
-                // If disconnecting user was host, clear host ID
+                // Don't immediately remove host status during grace period
                 if (room.hostId === socket.id) {
-                    room.hostId = null;
+                    setTimeout(() => {
+                        const room = rooms.get(currentRoom);
+                        if (room && room.hostId === socket.id) {
+                            room.hostId = null;
+                        }
+                    }, GRACE_PERIOD);
                 }
                 
                 room.users.delete(socket.id);
-                room.colors.delete(socket.id);
                 
-                if (user) {
-                    socket.to(currentRoom).emit('user-left', { 
-                        username: user.username, 
-                        color: user.color 
-                    });
-                }
+                // Notify others
+                socket.to(currentRoom).emit('user-left', {
+                    username: userState.username,
+                    color: userState.color
+                });
             }
         }
     });
