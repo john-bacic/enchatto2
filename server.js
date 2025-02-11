@@ -185,75 +185,34 @@ async function detectLanguage(text) {
     }
 }
 
-// Function to convert Japanese text to romanji
+// Function to convert Japanese text to romanji using OpenAI
 async function toRomanji(text) {
     try {
-        console.log('\n=== Starting Romanji Translation ===');
-        console.log('Input text:', text);
-        
-        if (!process.env.OPENAI_API_KEY) {
-            console.error('OpenAI API key is missing!');
-            return '';
-        }
-        
-        console.log('Making OpenAI API request...');
-        const response = await openai.chat.completions.create({
-            model: "gpt-4-turbo",
+        console.log('Converting to romanji:', text);
+        const completion = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo",
             messages: [
                 {
                     role: "system",
-                    content: "You are a Japanese to Romanji translator. Convert the given Japanese text to Romanji using the Hepburn system. Only respond with the romanji, nothing else. Do not include any arrows or other symbols. Example input: こんにちは Example output: konnichiwa"
+                    content: "You are a Japanese language expert. Convert the Japanese text to romanji. Only respond with the romanji, nothing else."
                 },
                 {
                     role: "user",
                     content: text
                 }
             ],
-            temperature: 0.3,
+            temperature: 0,
             max_tokens: 100
         });
-        
-        console.log('OpenAI API response received');
-        console.log('Full response:', JSON.stringify(response, null, 2));
-        
-        const romanji = response.choices[0].message.content.trim();
-        console.log('Extracted romanji:', romanji);
-        console.log('=== End Romanji Translation ===\n');
-        
+
+        const romanji = completion.choices[0].message.content.trim();
+        console.log('Romanji conversion result:', romanji);
         return romanji;
     } catch (error) {
-        console.error('Error in toRomanji:', error);
-        if (error.response) {
-            console.error('OpenAI API Error:', error.response.data);
-        }
-        return '';
+        console.error('Error converting to romanji:', error);
+        return null;
     }
 }
-
-// Function to convert Japanese text to romanji
-// async function toRomanji(text) {
-//     try {
-//         const response = await openai.chat.completions.create({
-//             model: "gpt-3.5-turbo",
-//             messages: [
-//                 {
-//                     role: "system",
-//                     content: "You are a Japanese to Romanji translator. Convert the given Japanese text to Romanji. Only respond with the romanji, nothing else."
-//                 },
-//                 {
-//                     role: "user",
-//                     content: text
-//                 }
-//             ],
-//             temperature: 0.3,
-//             max_tokens: 100
-//         });
-//         return response.choices[0].message.content.trim();
-//     } catch (error) {
-//         console.error('Error converting to romanji:', error);
-//         return null;
-//     }
-// }
 
 // Translation cache
 const translationCache = new Map();
@@ -427,48 +386,85 @@ io.on('connection', (socket) => {
                 targetLang: null
             };
 
-            console.log('\n=== Translation Process ===');
+            console.log('\n=== Translation Process START ===');
             console.log('Original message:', message);
             console.log('Detected language:', detectedLang);
 
-            // Translate if the message is in English or Japanese
-            if (detectedLang === 'en' || detectedLang === 'ja') {
-                const targetLang = detectedLang === 'en' ? 'ja' : 'en';
-                console.log('Target language:', targetLang);
-                
-                translations.translated = await translateText(message, targetLang);
-                translations.targetLang = targetLang;
-                console.log('Translated text:', translations.translated);
+            try {
+                // Translate if the message is in English or Japanese
+                if (detectedLang === 'en' || detectedLang === 'ja') {
+                    console.log('\n=== Translation Flow ===');
+                    console.log('1. Input:', message);
+                    console.log('2. Detected Language:', detectedLang);
+                    
+                    const targetLang = detectedLang === 'en' ? 'ja' : 'en';
+                    console.log('3. Target Language:', targetLang);
+                    
+                    // Get the translation
+                    translations.translated = await translateText(message, targetLang);
+                    translations.targetLang = targetLang;
+                    console.log('4. Translation:', translations.translated);
 
-                // Get romanji for Japanese text
-                if (targetLang === 'ja') {
-                    // English to Japanese case
-                    console.log('Converting Japanese translation to romanji:', translations.translated);
-                    translations.romanji = await toRomanji(translations.translated);
-                } else if (detectedLang === 'ja') {
-                    // Japanese to English case
-                    console.log('Converting original Japanese text to romanji:', message);
-                    translations.romanji = await toRomanji(message);
+                    // Always generate romanji for Japanese text
+                    if (detectedLang === 'ja') {
+                        // If original is Japanese, generate romanji from original
+                        console.log('5a. Generating romanji from ORIGINAL Japanese text');
+                        translations.romanji = await toRomanji(message);
+                        console.log('   Original text:', message);
+                        console.log('   Generated romanji:', translations.romanji);
+                    } else if (targetLang === 'ja' && translations.translated) {
+                        // If translation is Japanese, generate romanji from translation
+                        console.log('5b. Generating romanji from Japanese TRANSLATION');
+                        translations.romanji = await toRomanji(translations.translated);
+                        console.log('   Translation text:', translations.translated);
+                        console.log('   Generated romanji:', translations.romanji);
+                    } else if (detectedLang === 'en') {
+                        // For English messages, include a romanji placeholder
+                        console.log('5c. Adding romanji placeholder for English text');
+                        translations.romanji = '(romanji)';
+                        console.log('   Added placeholder romanji');
+                    }
+                    
+                    console.log('6. Final translations object:', translations);
+                    console.log('=== End Translation Flow ===\n');
                 }
-                console.log('Generated romanji:', translations.romanji);
+
+                // Log the final state
+                console.log('\nFinal translation state:');
+                console.log('- Original:', translations.original);
+                console.log('- Source Lang:', translations.sourceLang);
+                console.log('- Translation:', translations.translated);
+                console.log('- Target Lang:', translations.targetLang);
+                console.log('- Romanji:', translations.romanji);
+
+                // Emit the message with translations
+                const messageData = {
+                    username: username,
+                    message: translations.original,
+                    translation: translations.translated,
+                    romanji: translations.romanji,
+                    sourceLang: translations.sourceLang,
+                    targetLang: translations.targetLang,
+                    color: userColor,
+                    timestamp: new Date().toISOString()
+                };
+
+                console.log('\n=== Emitting Message Data ===');
+                console.log('Message:', messageData.message);
+                console.log('Translation:', messageData.translation);
+                console.log('Romanji:', messageData.romanji);
+                console.log('Source Lang:', messageData.sourceLang);
+                console.log('Target Lang:', messageData.targetLang);
+                console.log('============================\n');
+
+                io.to(roomId).emit('chat-message', messageData);
+                console.log('=== Translation Process COMPLETE ===\n');
+            } catch (error) {
+                console.error('Error during translation:', error);
+                socket.emit('error', 'Translation failed');
             }
 
-            console.log('Final translations:', JSON.stringify(translations, null, 2));
-
             // Add message to room history
-            const messageData = {
-                username: username,
-                message: translations.original,
-                translation: translations.translated,
-                romanji: translations.romanji,
-                sourceLang: translations.sourceLang,
-                targetLang: translations.targetLang,
-                color: userColor,
-                timestamp: new Date().toISOString()
-            };
-
-            console.log('Emitting message data:', JSON.stringify(messageData, null, 2));
-
             room.messages.push(messageData);
 
             // Trim message history if needed
@@ -477,7 +473,7 @@ io.on('connection', (socket) => {
             }
 
             // Broadcast message to all users in the room
-            io.to(roomId).emit('chat-message', messageData);
+            // io.to(roomId).emit('chat-message', messageData);
             console.log('=== Message Processing Complete ===\n');
         } catch (error) {
             console.error('Error processing message:', error);

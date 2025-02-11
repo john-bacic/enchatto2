@@ -84,6 +84,12 @@ joinRoomBtn.addEventListener('click', () => {
 
 // Function to create a message element with consistent structure
 function createMessageElement(data, isSystem = false) {
+    console.log('\n=== Creating Message Element ===');
+    console.log('Source Lang:', data.sourceLang);
+    console.log('Has Translation:', !!data.translation);
+    console.log('Has Romanji:', !!data.romanji);
+    console.log('Romanji Value:', data.romanji);
+
     const messageElement = document.createElement('div');
     messageElement.classList.add('message');
     
@@ -110,31 +116,57 @@ function createMessageElement(data, isSystem = false) {
         textContainer.classList.add('text-container');
 
         // Original message (English or Japanese)
-        const originalText = document.createElement('div');
+        const originalText = document.createElement('span');
         originalText.classList.add('text', data.sourceLang === 'en' ? 'en-text' : 'jp-text');
         originalText.textContent = data.message;
-        originalText.style.display = document.getElementById(`${data.sourceLang}-toggle`).checked ? '' : 'none';
         textContainer.appendChild(originalText);
+        console.log('1. Added original text:', data.message);
 
-        // Translation and romanji
-        if (data.translation) {
-            // Translation text
-            const translationText = document.createElement('div');
-            translationText.classList.add('text', data.targetLang === 'en' ? 'en-text' : 'jp-text');
-            translationText.textContent = data.translation;
-            translationText.style.display = document.getElementById(`${data.targetLang}-toggle`).checked ? '' : 'none';
-            textContainer.appendChild(translationText);
+        // Always create the translation container so romanji always appears
+        const translationContainer = document.createElement('div');
+        translationContainer.classList.add('translation-container');
 
-            // Add romanji if we have it
-            if (data.romanji) {
-                console.log('Adding romanji:', data.romanji);
-                const rpText = document.createElement('div');
-                rpText.classList.add('text', 'rp-text');
-                rpText.textContent = data.romanji;
-                rpText.style.display = document.getElementById('rp-toggle').checked ? '' : 'none';
-                textContainer.appendChild(rpText);
+        if (data.sourceLang === 'en') {
+            // For English input:
+            // If a Japanese translation exists, add it.
+            if (data.translation) {
+                console.log('2. Adding Japanese translation for English input:', data.translation);
+                const jpText = document.createElement('span');
+                jpText.classList.add('text', 'translation-text', 'jp-text');
+                jpText.textContent = data.translation;
+                translationContainer.appendChild(jpText);
+            }
+            // Always add romanji text for English input.
+            console.log('3. Adding romanji for English input');
+            const rpText = document.createElement('span');
+            rpText.classList.add('text', 'rp-text');
+            rpText.style.cssText =
+              'display: block !important; color: #666 !important; margin-top: 4px !important; font-style: italic !important;';
+            rpText.textContent = data.romanji || '(romanji)';
+            translationContainer.appendChild(rpText);
+        } else {
+            // For Japanese input:
+            // Always add romanji text first.
+            console.log('2. Adding romanji for Japanese input');
+            const rpText = document.createElement('span');
+            rpText.classList.add('text', 'rp-text');
+            rpText.style.cssText =
+              'display: block !important; color: #666 !important; margin-top: 4px !important; font-style: italic !important;';
+            rpText.textContent = data.romanji || '(romanji)';
+            translationContainer.appendChild(rpText);
+
+            // Then, if an English translation exists, add it.
+            if (data.translation) {
+                console.log('3. Adding English translation for Japanese input:', data.translation);
+                const enText = document.createElement('span');
+                enText.classList.add('text', 'translation-text', 'en-text');
+                enText.textContent = data.translation;
+                translationContainer.appendChild(enText);
             }
         }
+
+        textContainer.appendChild(translationContainer);
+        console.log('5. Final container HTML:', textContainer.innerHTML);
 
         messageContent.appendChild(textContainer);
     } else {
@@ -151,9 +183,16 @@ function createMessageElement(data, isSystem = false) {
 
 // Socket event handlers
 socket.on('chat-message', (data) => {
-    console.log('Received message data:', JSON.stringify(data, null, 2));
+    console.log('\n=== Received Chat Message Data ===');
+    console.log('Message:', data.message);
+    console.log('Source Lang:', data.sourceLang);
+    console.log('Translation:', data.translation);
+    console.log('Target Lang:', data.targetLang);
+    console.log('Romanji:', data.romanji);
+    console.log('================================\n');
+
     const messageElement = createMessageElement(data);
-    messages.appendChild(messageElement);
+    document.getElementById('messages').appendChild(messageElement);
     messages.scrollTop = messages.scrollHeight;
 });
 
@@ -176,55 +215,32 @@ socket.on('room-created', (roomId) => {
     chatScreen.style.display = 'block';
 });
 
-// Update message visibility function
-function updateMessageVisibility() {
-    console.log('=== START VISIBILITY UPDATE ===');
-    const showEn = document.getElementById('en-toggle').checked;
-    const showJp = document.getElementById('jp-toggle').checked;
-    const showRp = document.getElementById('rp-toggle').checked;
+// Initialize toggle states
+document.getElementById('en-toggle').checked = true;
+document.getElementById('jp-toggle').checked = true;
+document.getElementById('rp-toggle').checked = true;
 
-    console.log('Toggle states:', { showEn, showJp, showRp });
-
-    document.querySelectorAll('.message').forEach((message, index) => {
-        console.log(`Processing message ${index}:`);
-        const enText = message.querySelector('.en-text');
-        const jpText = message.querySelector('.jp-text');
-        const rpText = message.querySelector('.rp-text');
-
-        if (enText) {
-            console.log('English text:', {
-                content: enText.textContent,
-                visible: showEn
-            });
-            enText.style.display = showEn ? '' : 'none';
-        }
-        
-        if (jpText) {
-            console.log('Japanese text:', {
-                content: jpText.textContent,
-                visible: showJp
-            });
-            jpText.style.display = showJp ? '' : 'none';
-        }
-        
-        if (rpText) {
-            console.log('Romanji text:', {
-                content: rpText.textContent,
-                visible: showRp && rpText.textContent.trim() !== '',
-                hasContent: rpText.textContent.trim() !== ''
-            });
-            rpText.style.display = showRp && rpText.textContent.trim() !== '' ? '' : 'none';
-        } else {
-            console.log('No romanji text element found');
-        }
+// Add toggle event listeners
+document.getElementById('en-toggle').addEventListener('change', (e) => {
+    console.log('English toggle changed:', e.target.checked);
+    document.querySelectorAll('.en-text').forEach(el => {
+        el.style.display = e.target.checked ? '' : 'none';
     });
-    console.log('=== END VISIBILITY UPDATE ===');
-}
+});
 
-// Event listeners for toggles
-document.getElementById('en-toggle').addEventListener('change', updateMessageVisibility);
-document.getElementById('jp-toggle').addEventListener('change', updateMessageVisibility);
-document.getElementById('rp-toggle').addEventListener('change', updateMessageVisibility);
+document.getElementById('jp-toggle').addEventListener('change', (e) => {
+    console.log('Japanese toggle changed:', e.target.checked);
+    document.querySelectorAll('.jp-text').forEach(el => {
+        el.style.display = e.target.checked ? '' : 'none';
+    });
+});
+
+document.getElementById('rp-toggle').addEventListener('change', (e) => {
+    console.log('Romanji toggle changed:', e.target.checked);
+    document.querySelectorAll('.rp-text').forEach(el => {
+        el.style.display = e.target.checked ? '' : 'none';
+    });
+});
 
 // Function to send message
 function sendMessage() {
