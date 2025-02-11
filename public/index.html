@@ -14,11 +14,13 @@
   </style>
 </head>
 <body>
+  <!-- Host Welcome Screen -->
   <div id="start-host" class="welcome-screen" style="display: none;">
     <input type="text" id="host-name" placeholder="Enter your name (optional)" class="host-name-input" />
     <button onclick="startHosting()" class="host-button">Create New Room</button>
   </div>
 
+  <!-- Guest Welcome Screen -->
   <div id="guest-name-prompt" class="welcome-screen" style="display: none;">
     <div class="guest-selection">
       <select id="previous-guests" class="guest-select" onchange="selectPreviousGuest()">
@@ -29,6 +31,7 @@
     <button onclick="joinAsGuest()" class="guest-button">Join Room</button>
   </div>
 
+  <!-- Room Info (for Hosts) -->
   <div id="room-info" style="display: none;" class="room-info">
     <button class="accordion-button active" onclick="toggleAccordion(this)">Share Room</button>
     <div class="accordion-content show">
@@ -45,6 +48,7 @@
     </div>
   </div>
 
+  <!-- Chat Container -->
   <div id="chat-container" style="display: none;" class="chat-container">
     <div class="room-info">
       <div class="chat-header">
@@ -72,15 +76,24 @@
         <button onclick="sendMessage()" class="send-button" id="send-button">
             <svg viewBox="0 0 18 18">
                 <path fill="black" d="M9 5.5L14.5 14H3z" />
-              </svg>                          
+            </svg>                          
         </button>
       </div>
     </div>
   </div>
 
+  <!-- Socket.IO Library -->
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    const socket = io();
+    // Initialize socket with reconnection settings
+    const socket = io({
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      timeout: 10000,
+      transports: ['websocket', 'polling']
+    });
+    
     let username = null;
     let userColor = null;
     const urlParams = new URLSearchParams(window.location.search);
@@ -91,7 +104,7 @@
     const storedHostName = localStorage.getItem('chatHostUsername');
     const storedGuestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
 
-    // Helper function to store guest info
+    // Helper to store guest info and update the dropdown
     function storeGuestInfo(name, color) {
       const guestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
       guestInfo[name] = { color, lastUsed: new Date().toISOString() };
@@ -99,26 +112,18 @@
       updateGuestSelect();
     }
 
-    // Helper function to get guest info
     function getGuestInfo(name) {
       const guestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
       return guestInfo[name];
     }
 
-    // Helper function to update guest select dropdown
     function updateGuestSelect() {
       const select = document.getElementById('previous-guests');
       if (!select) return;
-
       const guestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
       const guests = Object.entries(guestInfo).sort((a, b) => new Date(b[1].lastUsed) - new Date(a[1].lastUsed));
-
-      // Clear existing options except the first one
-      while (select.options.length > 1) {
-        select.remove(1);
-      }
-
-      // Add guest options
+      // Remove all options except the first
+      while (select.options.length > 1) { select.remove(1); }
       guests.forEach(([name, info]) => {
         const option = document.createElement('option');
         option.value = name;
@@ -128,12 +133,10 @@
       });
     }
 
-    // Function to handle selecting a previous guest
     function selectPreviousGuest() {
       const select = document.getElementById('previous-guests');
       const guestNameInput = document.getElementById('guest-name');
       const selectedName = select.value;
-
       if (selectedName) {
         guestNameInput.value = selectedName;
         const info = getGuestInfo(selectedName);
@@ -146,18 +149,13 @@
       }
     }
 
-    // If we have a stored host name, set it in the input
     if (storedHostName) {
       const hostNameInput = document.getElementById('host-name');
       if (hostNameInput) hostNameInput.value = storedHostName;
     }
+    if (!isHost) { updateGuestSelect(); }
 
-    // Initialize guest select if we're not a host
-    if (!isHost) {
-      updateGuestSelect();
-    }
-
-    // Show/hide elements based on URL
+    // Show/hide sections based on the URL and host flag
     if (window.location.pathname === '/' || window.location.pathname === '') {
       document.getElementById('start-host').style.display = 'flex';
       document.getElementById('room-info').style.display = 'none';
@@ -179,15 +177,13 @@
       button.classList.toggle('active');
       const content = button.nextElementSibling;
       content.classList.toggle('show');
-
-      // Update room info height and chat container position
       const roomInfo = document.querySelector('.room-info');
       if (roomInfo) {
         document.documentElement.style.setProperty('--room-info-height', roomInfo.offsetHeight + 'px');
       }
     }
 
-    // Update room info height whenever content changes
+    // Update room-info height on content changes using ResizeObserver
     const observer = new ResizeObserver(entries => {
       for (let entry of entries) {
         if (entry.target.classList.contains('room-info')) {
@@ -195,14 +191,10 @@
         }
       }
     });
-
-    // Start observing room-info
     const roomInfoElement = document.querySelector('.room-info');
-    if (roomInfoElement) {
-      observer.observe(roomInfoElement);
-    }
+    if (roomInfoElement) { observer.observe(roomInfoElement); }
 
-    // Prevent bounce scrolling on iOS
+    // Prevent bounce scrolling on iOS (except in the messages area)
     document.addEventListener('touchmove', function(e) {
       if (e.target.closest('#messages')) return;
       e.preventDefault();
@@ -211,7 +203,6 @@
     function startHosting() {
       const storedName = localStorage.getItem('chatHostUsername');
       const hostName = document.getElementById('host-name').value.trim() || storedName || 'Host';
-      // Store host name in localStorage
       localStorage.setItem('chatHostUsername', hostName);
       window.location.href = `/room?host=true&hostName=${encodeURIComponent(hostName)}`;
     }
@@ -222,14 +213,9 @@
         alert('Please enter a name');
         return;
       }
-
-      // Get existing guest info if available
       const existingInfo = getGuestInfo(guestName);
       const guestColor = existingInfo ? existingInfo.color : null;
-
-      // Store guest info with timestamp
       storeGuestInfo(guestName, guestColor);
-
       document.getElementById('guest-name-prompt').style.display = 'none';
       document.getElementById('chat-container').style.display = 'flex';
       initializeRoom();
@@ -237,24 +223,15 @@
 
     async function initializeRoom() {
       if (roomId) {
-        // Store room ID in localStorage
         localStorage.setItem('chatRoomId', roomId);
-
         try {
           const response = await fetch(`/api/room/${roomId}?host=${isHost}`);
           if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Failed to join room');
           }
-
           const data = await response.json();
-
-          // Show QR code if we're the host
-          if (isHost) {
-            document.getElementById('qr-code').style.display = 'block';
-          }
-
-          // Get the appropriate stored info
+          if (isHost) { document.getElementById('qr-code').style.display = 'block'; }
           let storedName, storedColor;
           if (isHost) {
             storedName = localStorage.getItem('chatHostUsername');
@@ -264,23 +241,13 @@
             storedName = guestName;
             storedColor = guestInfo ? guestInfo.color : null;
           }
-
-          // Update room info display
           document.getElementById('room-id').textContent = roomId;
           const shareUrl = `${window.location.origin}/room/${roomId}`;
           document.getElementById('join-url').textContent = shareUrl;
-
-          // Join room
           socket.emit('join-room', roomId, isHost, storedName, storedColor);
-
-          // Hide welcome screen and show chat
           document.querySelector('.welcome-screen').style.display = 'none';
           document.querySelector('.chat-container').style.display = 'flex';
-
-          // Focus input
           document.getElementById('message-text').focus();
-
-          // If we're host, fetch and display QR code
           if (isHost) {
             const qrResponse = await fetch(`/api/room/${roomId}?host=true`);
             const qrData = await qrResponse.json();
@@ -297,34 +264,25 @@
       }
     }
 
-    // ------------------------------------------------------------------
-    // The createMessageElement function has been updated so that romanji
-    // is appended for messages regardless of the source language.
-    // ------------------------------------------------------------------
+    // Create a message element. (Note: Removed extra logging in romanji handling for performance.)
     function createMessageElement(msg, isOwn = false) {
       const messageElement = document.createElement('div');
       messageElement.classList.add('message');
-      if (isOwn) {
-        messageElement.classList.add('own');
-      }
-
-      // Create username element
+      if (isOwn) { messageElement.classList.add('own'); }
+      
       const usernameSpan = document.createElement('span');
       usernameSpan.className = 'username';
       usernameSpan.textContent = msg.username;
       usernameSpan.style.color = msg.color;
       messageElement.appendChild(usernameSpan);
-
-      // Create message container to hold all text
+      
       const messageContent = document.createElement('div');
       messageContent.className = 'message-content';
       messageElement.appendChild(messageContent);
-
-      // Handle original message
+      
       const originalText = document.createElement('span');
       originalText.className = 'text';
       originalText.textContent = msg.message;
-      // Add language class based on detected language
       if (msg.sourceLang === 'en') {
         originalText.classList.add('en-text');
         originalText.style.display = showEnCheckbox.checked ? '' : 'none';
@@ -333,13 +291,11 @@
         originalText.style.display = showJpCheckbox.checked ? '' : 'none';
       }
       messageContent.appendChild(originalText);
-
-      // Handle translation if available
+      
       if (msg.translation && msg.targetLang) {
         const translationText = document.createElement('span');
         translationText.className = 'text translation-text';
         translationText.textContent = msg.translation;
-        // Add language class based on target language
         if (msg.targetLang === 'en') {
           translationText.classList.add('en-text');
           translationText.style.display = showEnCheckbox.checked ? '' : 'none';
@@ -349,114 +305,70 @@
         }
         messageContent.appendChild(translationText);
       }
-
-      // Handle romanji if available (now for both English and Japanese messages)
+      
       if (msg.romanji) {
-        console.log('Adding romanji:', msg.romanji);
         const romanjiText = document.createElement('span');
         romanjiText.className = 'text rp-text';
         romanjiText.textContent = msg.romanji;
         romanjiText.style.display = showRpCheckbox.checked ? '' : 'none';
         messageContent.appendChild(romanjiText);
       }
-
+      
       return messageElement;
     }
 
-    // Initialize language toggles
+    // Initialize language toggle elements
     const showEnCheckbox = document.getElementById('en-toggle');
     const showJpCheckbox = document.getElementById('jp-toggle');
     const showRpCheckbox = document.getElementById('rp-toggle');
 
-    // Load toggle states from localStorage
+    // Load and save toggle states
     function loadToggleStates() {
       const showEn = localStorage.getItem('showEn');
       const showJp = localStorage.getItem('showJp');
       const showRp = localStorage.getItem('showRp');
-
-      // Set checkbox states (default to checked if not found)
       showEnCheckbox.checked = showEn === null ? true : showEn === 'true';
       showJpCheckbox.checked = showJp === null ? true : showJp === 'true';
       showRpCheckbox.checked = showRp === null ? true : showRp === 'true';
-
-      // Update visibility of existing messages
       updateMessageVisibility();
     }
-
-    // Save toggle states to localStorage
     function saveToggleStates() {
       localStorage.setItem('showEn', showEnCheckbox.checked);
       localStorage.setItem('showJp', showJpCheckbox.checked);
       localStorage.setItem('showRp', showRpCheckbox.checked);
     }
-
     function updateMessageVisibility() {
       const messages = document.querySelectorAll('.message');
       messages.forEach(message => {
-        // Update English text visibility
         const enTexts = message.querySelectorAll('.en-text');
-        enTexts.forEach(text => {
-          text.style.display = showEnCheckbox.checked ? '' : 'none';
-        });
-
-        // Update Japanese text visibility
+        enTexts.forEach(text => { text.style.display = showEnCheckbox.checked ? '' : 'none'; });
         const jpTexts = message.querySelectorAll('.jp-text');
-        jpTexts.forEach(text => {
-          text.style.display = showJpCheckbox.checked ? '' : 'none';
-        });
-
-        // Update romanji text visibility
+        jpTexts.forEach(text => { text.style.display = showJpCheckbox.checked ? '' : 'none'; });
         const rpTexts = message.querySelectorAll('.rp-text');
-        rpTexts.forEach(text => {
-          text.style.display = showRpCheckbox.checked ? '' : 'none';
-        });
+        rpTexts.forEach(text => { text.style.display = showRpCheckbox.checked ? '' : 'none'; });
       });
     }
-
-    // Add event listeners for toggle changes
-    showEnCheckbox.addEventListener('change', () => {
-      updateMessageVisibility();
-      saveToggleStates();
-    });
-
-    showJpCheckbox.addEventListener('change', () => {
-      updateMessageVisibility();
-      saveToggleStates();
-    });
-
-    showRpCheckbox.addEventListener('change', () => {
-      updateMessageVisibility();
-      saveToggleStates();
-    });
-
-    // Load saved states when page loads
+    showEnCheckbox.addEventListener('change', () => { updateMessageVisibility(); saveToggleStates(); });
+    showJpCheckbox.addEventListener('change', () => { updateMessageVisibility(); saveToggleStates(); });
+    showRpCheckbox.addEventListener('change', () => { updateMessageVisibility(); saveToggleStates(); });
     loadToggleStates();
 
+    // Socket event handlers
     socket.on('username-assigned', (data) => {
       username = data.username;
       userColor = data.color;
       isHost = data.isHost; // Update host status
-
       const welcomeMessage = document.getElementById('welcome-message');
       if (welcomeMessage) {
         welcomeMessage.innerHTML = `You joined as: <span style="color: ${userColor}">${username}</span>`;
       }
-
-      // Store the color if we're a guest
       if (!isHost && username) {
         storeGuestInfo(username, userColor);
-        // Update the input field border color
         const guestNameInput = document.getElementById('guest-name');
-        if (guestNameInput) {
-          guestNameInput.style.borderColor = userColor;
-        }
+        if (guestNameInput) { guestNameInput.style.borderColor = userColor; }
       }
-
-      // Update send button color
       const sendButton = document.getElementById('send-button');
-      if (sendButton) {
-        sendButton.style.background = userColor;
-      }
+      if (sendButton) { sendButton.style.background = userColor; }
     });
 
     socket.on('user-joined', (data) => {
@@ -466,7 +378,6 @@
         color: data.color
       });
     });
-
     socket.on('user-left', (data) => {
       addMessage({
         type: 'system',
@@ -474,14 +385,12 @@
         color: data.color
       });
     });
-
     socket.on('chat-message', (msg) => {
       const messagesDiv = document.getElementById('messages');
       const messageElement = createMessageElement(msg, msg.username === username);
       messagesDiv.appendChild(messageElement);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     });
-
     socket.on('recent-messages', (messagesArr) => {
       const messagesDiv = document.getElementById('messages');
       messagesDiv.innerHTML = '';
@@ -495,26 +404,21 @@
     function addMessage(message) {
       const messagesDiv = document.getElementById('messages');
       const messageElement = document.createElement('div');
-
       if (message.type === 'system') {
         messageElement.className = 'message system';
         messageElement.textContent = message.text;
       } else {
         messageElement.className = `message ${message.own ? 'own' : ''}`;
-
         const usernameSpan = document.createElement('span');
         usernameSpan.className = 'username';
         usernameSpan.textContent = message.username;
         usernameSpan.style.color = message.color;
-
         const textSpan = document.createElement('span');
         textSpan.className = 'text';
         textSpan.textContent = message.text;
-
         messageElement.appendChild(usernameSpan);
         messageElement.appendChild(textSpan);
       }
-
       messagesDiv.appendChild(messageElement);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
@@ -522,25 +426,19 @@
     function sendMessage() {
       const messageInput = document.getElementById('message-text');
       const message = messageInput.value.trim();
-
       if (message && username) {
         socket.emit('chat-message', roomId, message);
         messageInput.value = '';
       }
     }
-
     document.getElementById('message-text').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        sendMessage();
-      }
+      if (e.key === 'Enter') { sendMessage(); }
     });
 
     function copyUrl() {
       const url = new URL(window.location.href);
-      // Remove the host parameter
       url.searchParams.delete('host');
       const shareUrl = url.toString();
-
       navigator.clipboard.writeText(shareUrl).then(() => {
         const button = document.getElementById('copy-button');
         button.textContent = 'Copied!';
@@ -549,43 +447,46 @@
           button.textContent = 'Copy';
           button.classList.remove('copied');
         }, 2000);
-      }).catch(err => {
-        console.error('Failed to copy:', err);
-      });
+      }).catch(err => { console.error('Failed to copy:', err); });
     }
 
     socket.on('error', (message) => {
-      if (message !== 'Room not found') {
-        alert(message);
-      }
+      if (message !== 'Room not found') { alert(message); }
     });
 
     socket.on('disconnect', () => {
       console.log('Disconnected from server');
-      // Try to reconnect
-      socket.connect();
+      // Do not force a reconnect here; let built-in reconnection handle it.
     });
 
     socket.on('reconnect', () => {
       console.log('Reconnected to server');
-      // Rejoin room with stored info
-      socket.emit('join-room', roomId, isHost);
-    });
-
-    // *** New: Listen for when the page becomes visible again ***
-    document.addEventListener('visibilitychange', function() {
-      if (!document.hidden) {
-        console.log('Page is visible, rejoining room.');
-        if (!socket.connected) {
-          socket.connect();
-        } else {
-          // If already connected, rejoin the room with current user info
-          if (username) {
-            socket.emit('join-room', roomId, isHost, username, userColor);
-          }
-        }
+      if (username) {
+        socket.emit('join-room', roomId, isHost, username, userColor);
       }
     });
+
+    // Debounce helper to prevent rapid firing
+    function debounce(func, wait) {
+      let timeout;
+      return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+      };
+    }
+
+    // Listen for when the page becomes visible (debounced)
+    document.addEventListener('visibilitychange', debounce(function() {
+      if (!document.hidden) {
+        console.log('Page is visible.');
+        if (!socket.connected) {
+          console.log('Socket not connected; attempting reconnect.');
+          socket.connect();
+        } else if (username) {
+          socket.emit('join-room', roomId, isHost, username, userColor);
+        }
+      }
+    }, 500));
   </script>
 </body>
 </html>
