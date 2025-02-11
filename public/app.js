@@ -1,3 +1,4 @@
+// Initialize socket with Safari-friendly configuration
 const socket = io({
     reconnection: true,
     reconnectionAttempts: Infinity,
@@ -12,12 +13,148 @@ const socket = io({
     multiplex: true
 });
 
-console.log('Initializing socket connection...');
-
 let currentRoom = null;
 let username = null;
 let lastKnownRoom = null;
 let lastKnownUsername = null;
+let lastKnownColor = null;
+let isHost = false;
+let reconnectAttempts = 0;
+let forceReconnectTimer = null;
+
+// Track connection state
+let connectionState = {
+    isConnected: false,
+    lastConnectedAt: Date.now(),
+    reconnecting: false
+};
+
+// Safari-specific detection
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+// Enhanced reconnection function
+function attemptReconnection(immediate = false) {
+    if (forceReconnectTimer) {
+        clearTimeout(forceReconnectTimer);
+    }
+
+    if (!connectionState.isConnected && !connectionState.reconnecting) {
+        console.log('Attempting reconnection...');
+        connectionState.reconnecting = true;
+
+        if (immediate) {
+            socket.connect();
+        } else {
+            // Exponential backoff with max delay
+            const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 10000);
+            forceReconnectTimer = setTimeout(() => {
+                socket.connect();
+            }, delay);
+        }
+
+        reconnectAttempts++;
+    }
+}
+
+// Enhanced visibility change handler
+function handleVisibilityChange() {
+    if (!document.hidden) {
+        console.log('Page visible - checking connection');
+        
+        // Force reconnection if disconnected for more than 5 seconds
+        if (!connectionState.isConnected && 
+            (Date.now() - connectionState.lastConnectedAt > 5000)) {
+            attemptReconnection(true);
+        }
+        
+        // Rejoin room if connected but not in room
+        if (connectionState.isConnected && lastKnownRoom && !currentRoom) {
+            console.log('Rejoining room:', lastKnownRoom);
+            socket.emit('join-room', lastKnownRoom, isHost, lastKnownUsername, lastKnownColor);
+        }
+    }
+}
+
+// Enhanced page lifecycle handlers
+function handlePageShow(event) {
+    console.log('Page shown, persisted:', event.persisted);
+    if (event.persisted || isSafari) {
+        handleVisibilityChange();
+    }
+}
+
+function handlePageHide() {
+    // Store connection state
+    connectionState.lastConnectedAt = Date.now();
+    
+    // Clear any pending reconnection attempts
+    if (forceReconnectTimer) {
+        clearTimeout(forceReconnectTimer);
+    }
+}
+
+// Connection event handlers
+socket.on('connect', () => {
+    console.log('Socket connected!', socket.id);
+    connectionState.isConnected = true;
+    connectionState.lastConnectedAt = Date.now();
+    connectionState.reconnecting = false;
+    reconnectAttempts = 0;
+
+    if (lastKnownRoom) {
+        console.log('Rejoining room after connect:', lastKnownRoom);
+        socket.emit('join-room', lastKnownRoom, isHost, lastKnownUsername, lastKnownColor);
+    }
+});
+
+socket.on('disconnect', (reason) => {
+    console.log('Socket disconnected:', reason);
+    connectionState.isConnected = false;
+    
+    // Handle Safari-specific disconnects
+    if (isSafari && reason === 'transport close') {
+        attemptReconnection();
+    }
+});
+
+socket.on('connect_error', (error) => {
+    console.error('Socket connection error:', error);
+    connectionState.isConnected = false;
+    attemptReconnection();
+});
+
+// Room event handlers with state tracking
+socket.on('username-assigned', (data) => {
+    username = data.username;
+    lastKnownUsername = data.username;
+    lastKnownColor = data.color;
+    isHost = data.isHost;
+});
+
+socket.on('room-joined', (roomId, userData) => {
+    currentRoom = roomId;
+    lastKnownRoom = roomId;
+    username = userData.username;
+    lastKnownUsername = userData.username;
+    lastKnownColor = userData.color;
+    isHost = userData.isHost;
+    console.log('Joined room:', roomId, 'as:', userData.username);
+    roomNumber.textContent = roomId;
+    welcomeScreen.style.display = 'none';
+    chatScreen.style.display = 'block';
+});
+
+// Event listeners
+document.addEventListener('visibilitychange', handleVisibilityChange);
+window.addEventListener('pageshow', handlePageShow);
+window.addEventListener('pagehide', handlePageHide);
+
+// Handle mobile-specific events
+if (isMobile) {
+    window.addEventListener('online', () => attemptReconnection(true));
+    window.addEventListener('focus', () => handleVisibilityChange());
+}
 
 // DOM Elements
 const welcomeScreen = document.getElementById('welcome-screen');
@@ -29,51 +166,6 @@ const roomNumber = document.getElementById('room-number');
 const messageInput = document.getElementById('message-text');
 const sendBtn = document.getElementById('send-button');
 const messages = document.getElementById('messages');
-
-// Handle visibility change
-document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'visible') {
-        // Reconnect if needed
-        if (!socket.connected) {
-            console.log('Reconnecting on visibility change...');
-            socket.connect();
-            
-            // Rejoin room if we have the information
-            if (lastKnownRoom) {
-                console.log('Rejoining room:', lastKnownRoom);
-                socket.emit('join-room', lastKnownRoom, false, lastKnownUsername);
-            }
-        }
-    }
-});
-
-// Handle socket reconnection
-socket.on('connect', () => {
-    console.log('Socket connected!', socket.id);
-    if (lastKnownRoom) {
-        console.log('Rejoining room after reconnect:', lastKnownRoom);
-        socket.emit('join-room', lastKnownRoom, false, lastKnownUsername);
-    }
-});
-
-socket.on('disconnect', () => {
-    console.log('Socket disconnected');
-});
-
-socket.on('connect_error', (error) => {
-    console.error('Socket connection error:', error);
-    // Try to reconnect
-    setTimeout(() => {
-        if (!socket.connected) {
-            console.log('Attempting to reconnect...');
-            socket.connect();
-        }
-    }, 2000);
-});
-
-socket.on('error', (error) => {
-    console.error('Socket error:', error);
-});
 
 // Event Listeners
 createRoomBtn.addEventListener('click', () => {
@@ -181,25 +273,6 @@ socket.on('recent-messages', (messages) => {
     
     // Update visibility based on current toggle states
     updateMessageVisibility();
-});
-
-socket.on('room-joined', (roomId, userData) => {
-    currentRoom = roomId;
-    lastKnownRoom = roomId;
-    username = userData.username;
-    lastKnownUsername = userData.username;
-    console.log('Joined room:', roomId, 'as:', userData.username);
-    roomNumber.textContent = roomId;
-    welcomeScreen.style.display = 'none';
-    chatScreen.style.display = 'block';
-});
-
-socket.on('room-created', (roomId) => {
-    currentRoom = roomId;
-    lastKnownRoom = roomId;
-    roomNumber.textContent = roomId;
-    welcomeScreen.style.display = 'none';
-    chatScreen.style.display = 'block';
 });
 
 // Update message visibility function
