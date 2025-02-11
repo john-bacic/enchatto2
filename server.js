@@ -371,9 +371,40 @@ io.on('connection', (socket) => {
     let username = null;
     let userColor = null;
 
-    // Handle ping
+    // Handle ping for keep-alive
     socket.on('ping', () => {
         socket.emit('pong');
+    });
+
+    // Handle disconnect with iOS optimization
+    socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
+        
+        if (currentRoom) {
+            const room = rooms.get(currentRoom);
+            if (room && room.users.has(socket.id)) {
+                const userState = storeDisconnectedUser(room, socket);
+                
+                // Don't immediately remove host status during grace period
+                if (room.hostId === socket.id) {
+                    setTimeout(() => {
+                        const room = rooms.get(currentRoom);
+                        if (room && room.hostId === socket.id) {
+                            room.hostId = null;
+                        }
+                    }, GRACE_PERIOD);
+                }
+                
+                room.users.delete(socket.id);
+                
+                // Notify others
+                socket.to(currentRoom).emit('user-left', {
+                    username: userState.username,
+                    color: userState.color,
+                    temporary: true // Mark as temporary for iOS background state
+                });
+            }
+        }
     });
 
     socket.on('join-room', async (roomId, isHost, requestedName, requestedColor) => {
@@ -552,36 +583,6 @@ io.on('connection', (socket) => {
             console.log('=== Message Processing Complete ===\n');
         } catch (error) {
             console.error('Error processing message:', error);
-        }
-    });
-    
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
-        
-        if (currentRoom) {
-            const room = rooms.get(currentRoom);
-            if (room && room.users.has(socket.id)) {
-                // Store user state before disconnect
-                const userState = storeDisconnectedUser(room, socket);
-                
-                // Don't immediately remove host status during grace period
-                if (room.hostId === socket.id) {
-                    setTimeout(() => {
-                        const room = rooms.get(currentRoom);
-                        if (room && room.hostId === socket.id) {
-                            room.hostId = null;
-                        }
-                    }, GRACE_PERIOD);
-                }
-                
-                room.users.delete(socket.id);
-                
-                // Notify others
-                socket.to(currentRoom).emit('user-left', {
-                    username: userState.username,
-                    color: userState.color
-                });
-            }
         }
     });
 });
