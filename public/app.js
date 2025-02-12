@@ -215,69 +215,59 @@ joinRoomBtn.addEventListener('click', () => {
 
 // Function to create a message element with consistent structure
 function createMessageElement(data, isSystem = false) {
-    const messageElement = document.createElement('div');
-    messageElement.classList.add('message');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message';
     
     if (isSystem) {
-        messageElement.classList.add('system-message');
-    } else if (data.username === username) {
-        messageElement.classList.add('own-message');
+        messageDiv.classList.add('system-message');
+        messageDiv.textContent = data;
+        return messageDiv;
     }
 
-    // Create message content container
+    const { username, message, color, timestamp } = data;
+    const isOwn = username === window.username;
+
+    if (isOwn) {
+        messageDiv.classList.add('own-message');
+    }
+
     const messageContent = document.createElement('div');
-    messageContent.classList.add('message-content');
+    messageContent.className = 'message-content';
 
-    if (!isSystem) {
-        // Add username with color
-        const usernameSpan = document.createElement('span');
-        usernameSpan.classList.add('username');
-        usernameSpan.style.color = data.color;
-        usernameSpan.textContent = data.username;
-        messageContent.appendChild(usernameSpan);
-
-        // Create text container for better spacing
-        const textContainer = document.createElement('div');
-        textContainer.classList.add('text-container');
-
-        // Original message (English or Japanese)
-        const originalText = document.createElement('div');
-        originalText.classList.add('text', data.sourceLang === 'en' ? 'en-text' : 'jp-text');
-        originalText.textContent = data.message;
-        originalText.style.display = document.getElementById(`${data.sourceLang}-toggle`).checked ? '' : 'none';
-        textContainer.appendChild(originalText);
-
-        // Translation and romanji
-        if (data.translation) {
-            // Translation text
-            const translationText = document.createElement('div');
-            translationText.classList.add('text', data.targetLang === 'en' ? 'en-text' : 'jp-text');
-            translationText.textContent = data.translation;
-            translationText.style.display = document.getElementById(`${data.targetLang}-toggle`).checked ? '' : 'none';
-            textContainer.appendChild(translationText);
-
-            // Add romanji if we have it
-            if (data.romanji) {
-                console.log('Adding romanji:', data.romanji);
-                const rpText = document.createElement('div');
-                rpText.classList.add('text', 'rp-text');
-                rpText.textContent = data.romanji;
-                rpText.style.display = document.getElementById('rp-toggle').checked ? '' : 'none';
-                textContainer.appendChild(rpText);
-            }
-        }
-
-        messageContent.appendChild(textContainer);
-    } else {
-        // System message
-        const enText = document.createElement('div');
-        enText.classList.add('text', 'en-text');
-        enText.textContent = data;
-        messageContent.appendChild(enText);
-    }
-
-    messageElement.appendChild(messageContent);
-    return messageElement;
+    const header = document.createElement('div');
+    header.className = 'message-header';
+    
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'username';
+    nameSpan.style.color = color;
+    nameSpan.textContent = username;
+    
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'timestamp';
+    timeSpan.textContent = new Date(timestamp).toLocaleTimeString();
+    
+    header.appendChild(nameSpan);
+    header.appendChild(timeSpan);
+    
+    const textDiv = document.createElement('div');
+    textDiv.className = 'message-text';
+    // Replace newlines with <br> tags for proper display
+    textDiv.innerHTML = message.split('\n').map(line => {
+        // Escape HTML to prevent XSS
+        const escapedLine = line
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+        return escapedLine;
+    }).join('<br>');
+    
+    messageContent.appendChild(header);
+    messageContent.appendChild(textDiv);
+    messageDiv.appendChild(messageContent);
+    
+    return messageDiv;
 }
 
 // Socket event handlers
@@ -304,75 +294,117 @@ socket.on('recent-messages', (messages) => {
     
     // Scroll to bottom
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    
-    // Update visibility based on current toggle states
-    updateMessageVisibility();
 });
 
-// Update message visibility function
-function updateMessageVisibility() {
-    console.log('=== START VISIBILITY UPDATE ===');
-    const showEn = document.getElementById('en-toggle').checked;
-    const showJp = document.getElementById('jp-toggle').checked;
-    const showRp = document.getElementById('rp-toggle').checked;
-
-    console.log('Toggle states:', { showEn, showJp, showRp });
-
-    document.querySelectorAll('.message').forEach((message, index) => {
-        console.log(`Processing message ${index}:`);
-        const enText = message.querySelector('.en-text');
-        const jpText = message.querySelector('.jp-text');
-        const rpText = message.querySelector('.rp-text');
-
-        if (enText) {
-            console.log('English text:', {
-                content: enText.textContent,
-                visible: showEn
-            });
-            enText.style.display = showEn ? '' : 'none';
-        }
-        
-        if (jpText) {
-            console.log('Japanese text:', {
-                content: jpText.textContent,
-                visible: showJp
-            });
-            jpText.style.display = showJp ? '' : 'none';
-        }
-        
-        if (rpText) {
-            console.log('Romanji text:', {
-                content: rpText.textContent,
-                visible: showRp && rpText.textContent.trim() !== '',
-                hasContent: rpText.textContent.trim() !== ''
-            });
-            rpText.style.display = showRp && rpText.textContent.trim() !== '' ? '' : 'none';
-        } else {
-            console.log('No romanji text element found');
-        }
-    });
-    console.log('=== END VISIBILITY UPDATE ===');
-}
-
 // Event listeners for toggles
-document.getElementById('en-toggle').addEventListener('change', updateMessageVisibility);
-document.getElementById('jp-toggle').addEventListener('change', updateMessageVisibility);
-document.getElementById('rp-toggle').addEventListener('change', updateMessageVisibility);
+document.getElementById('en-toggle').addEventListener('change', () => {
+    // Update message visibility
+    const showEn = document.getElementById('en-toggle').checked;
+    const enTexts = messages.querySelectorAll('.en-text');
+    enTexts.forEach(text => {
+        text.style.display = showEn ? '' : 'none';
+    });
+});
+
+document.getElementById('jp-toggle').addEventListener('change', () => {
+    // Update message visibility
+    const showJp = document.getElementById('jp-toggle').checked;
+    const jpTexts = messages.querySelectorAll('.jp-text');
+    jpTexts.forEach(text => {
+        text.style.display = showJp ? '' : 'none';
+    });
+});
+
+document.getElementById('rp-toggle').addEventListener('change', () => {
+    // Update message visibility
+    const showRp = document.getElementById('rp-toggle').checked;
+    const rpTexts = messages.querySelectorAll('.rp-text');
+    rpTexts.forEach(text => {
+        text.style.display = showRp && text.textContent.trim() !== '' ? '' : 'none';
+    });
+});
 
 // Function to send message
 function sendMessage() {
-    const messageText = messageInput.value.trim();
-    if (messageText && socket.connected) {
-        socket.emit('chat-message', currentRoom, messageText);
+    const messageInput = document.getElementById('message-text');
+    const message = messageInput.value.trim();
+    if (message && currentRoom) {
+        socket.emit('chat-message', currentRoom, message);
         messageInput.value = '';
+        // Reset the textarea height
+        messageInput.style.height = '24px';
+        messageInput.style.overflowY = 'hidden';
+    }
+}
+
+// Function to auto-resize textarea and containers
+function autoResizeTextarea(textarea) {
+    const container = document.querySelector('.message-input-container');
+    const messageInput = document.querySelector('.message-input');
+    
+    // Reset heights to get correct measurements
+    textarea.style.height = '24px';
+    
+    // Get the new height
+    const height = Math.min(textarea.scrollHeight, 200);
+    
+    // Set heights for all elements
+    textarea.style.height = height + 'px';
+    messageInput.style.height = (height + 16) + 'px'; // Add padding
+    container.style.height = (height + 32) + 'px'; // Add container padding
+    
+    // Handle overflow if needed
+    if (height >= 200) {
+        textarea.style.overflowY = 'auto';
+        textarea.scrollTop = textarea.scrollHeight;
+    } else {
+        textarea.style.overflowY = 'hidden';
     }
 }
 
 // Event listener for message input
-messageInput.addEventListener('keypress', (e) => {
+const messageInput = document.getElementById('message-text');
+
+// Auto-resize on input
+messageInput.addEventListener('input', function() {
+    autoResizeTextarea(this);
+});
+
+// Handle paste events
+messageInput.addEventListener('paste', function() {
+    // Use setTimeout to wait for the paste to complete
+    setTimeout(() => autoResizeTextarea(this), 0);
+});
+
+// Handle keydown events for Enter
+messageInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
-        sendMessage();
+        if (!e.shiftKey) {
+            e.preventDefault(); // Prevent default only when not using Shift+Enter
+        }
+        // Always resize after a line break
+        setTimeout(() => autoResizeTextarea(this), 0);
     }
+});
+
+// Initialize textarea height
+autoResizeTextarea(messageInput);
+
+// Event listener for send button
+document.querySelector('.send-button').addEventListener('click', function() {
+    sendMessage();
+    // Reset all heights after sending
+    setTimeout(() => {
+        const container = document.querySelector('.message-input-container');
+        const messageInput = document.querySelector('.message-input');
+        const textarea = document.getElementById('message-text');
+        
+        textarea.value = '';
+        textarea.style.height = '24px';
+        messageInput.style.height = '40px';
+        container.style.height = '56px';
+        textarea.style.overflowY = 'hidden';
+    }, 0);
 });
 
 socket.on('user-joined', (data) => {
