@@ -165,6 +165,7 @@ body {
     position: relative;
     z-index: 2;
     display: flex;
+    justify-content: space-between;
     align-items: center;
     gap: 15px;
 }
@@ -328,7 +329,7 @@ body {
     font-size: 14px;
     font-weight: bold;
     background: #2d2d2d;
-    border-bottom: 1px solid #363636;
+    /* border-bottom: 1px solid #363636; */
     flex-shrink: 0;
     color: var(--color-text);
 }
