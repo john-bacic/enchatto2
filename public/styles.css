@@ -475,18 +475,18 @@ input:checked + .toggle span,
     bottom: 0;
     width: 100%;
     z-index: 10;
-    height: auto;
+    display: flex;
+    flex-direction: column;
 }
 
 .message-input {
     display: flex;
-    align-items: flex-start;
+    align-items: flex-end;
     gap: 8px;
     background: var(--color-bg-dark);
     border: 1px solid var(--color-message-border);
     border-radius: 12px;
     padding: 8px;
-    height: auto;
 }
 
 #message-text {
@@ -497,14 +497,35 @@ input:checked + .toggle span,
     background: transparent;
     color: var(--color-text);
     resize: none;
-    height: auto;
     min-height: 24px;
     line-height: 1.4;
     font-family: inherit;
-    overflow-y: hidden;
+    overflow-y: auto;
     width: 100%;
     box-sizing: border-box;
     display: block;
+    -webkit-overflow-scrolling: touch; /* Enable smooth scrolling on iOS */
+    overscroll-behavior-y: contain; /* Prevent parent scroll while scrolling textarea */
+    touch-action: pan-y; /* Enable touch scrolling */
+    max-height: 200px;
+}
+
+#message-text::-webkit-scrollbar {
+    width: 6px;
+}
+
+#message-text::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#message-text::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+#message-text {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 #message-text:focus {
@@ -524,8 +545,8 @@ input:checked + .toggle span,
     display: flex;
     align-items: center;
     justify-content: center;
-    /* margin-bottom: 4px; */
     border-radius: 50%;
+    align-self: flex-end;
 }
 
 .send-button svg {

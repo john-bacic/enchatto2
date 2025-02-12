@@ -324,41 +324,45 @@ document.getElementById('rp-toggle').addEventListener('change', () => {
     });
 });
 
-// Function to send message
-function sendMessage() {
-    const messageInput = document.getElementById('message-text');
-    const message = messageInput.value.trim();
-    if (message && currentRoom) {
-        socket.emit('chat-message', currentRoom, message);
-        messageInput.value = '';
-        // Reset the textarea height
-        messageInput.style.height = '24px';
-        messageInput.style.overflowY = 'hidden';
-    }
-}
-
 // Function to auto-resize textarea and containers
 function autoResizeTextarea(textarea) {
-    const container = document.querySelector('.message-input-container');
-    const messageInput = document.querySelector('.message-input');
-    
-    // Reset heights to get correct measurements
+    // Reset height to get correct scrollHeight
     textarea.style.height = '24px';
     
-    // Get the new height
-    const height = Math.min(textarea.scrollHeight, 200);
+    // Calculate new height
+    const scrollHeight = textarea.scrollHeight;
+    const maxHeight = 200;
+    const newHeight = Math.min(scrollHeight, maxHeight);
     
-    // Set heights for all elements
-    textarea.style.height = height + 'px';
-    messageInput.style.height = (height + 16) + 'px'; // Add padding
-    container.style.height = (height + 32) + 'px'; // Add container padding
+    // Apply new height
+    textarea.style.height = newHeight + 'px';
     
-    // Handle overflow if needed
-    if (height >= 200) {
-        textarea.style.overflowY = 'auto';
-        textarea.scrollTop = textarea.scrollHeight;
-    } else {
-        textarea.style.overflowY = 'hidden';
+    // Always enable scrolling on mobile for better UX
+    textarea.style.overflowY = 'auto';
+    
+    // If at max height, scroll to cursor position
+    if (scrollHeight > maxHeight) {
+        // Use requestAnimationFrame to ensure the scroll happens after the height change
+        requestAnimationFrame(() => {
+            // Get cursor position
+            const cursorPosition = textarea.selectionStart;
+            const text = textarea.value;
+            
+            // Create a temporary div to measure text height
+            const temp = document.createElement('div');
+            temp.style.cssText = window.getComputedStyle(textarea, null).cssText;
+            temp.style.height = 'auto';
+            temp.style.position = 'absolute';
+            temp.style.visibility = 'hidden';
+            temp.textContent = text.substring(0, cursorPosition);
+            document.body.appendChild(temp);
+            
+            // Calculate cursor position and scroll
+            const cursorOffset = Math.min(temp.clientHeight, maxHeight);
+            document.body.removeChild(temp);
+            
+            textarea.scrollTop = cursorOffset - (maxHeight / 2);
+        });
     }
 }
 
@@ -387,23 +391,30 @@ messageInput.addEventListener('keydown', function(e) {
     }
 });
 
+// Prevent zoom on double tap for iOS
+messageInput.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    // Don't prevent default if user is selecting text
+    if (document.activeElement === this) {
+        const touch = e.changedTouches[0];
+        const element = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (element === this) {
+            e.preventDefault();
+        }
+    }
+});
+
 // Initialize textarea height
 autoResizeTextarea(messageInput);
 
 // Event listener for send button
 document.querySelector('.send-button').addEventListener('click', function() {
     sendMessage();
-    // Reset all heights after sending
+    // Reset the textarea height after sending
     setTimeout(() => {
-        const container = document.querySelector('.message-input-container');
-        const messageInput = document.querySelector('.message-input');
-        const textarea = document.getElementById('message-text');
-        
-        textarea.value = '';
-        textarea.style.height = '24px';
-        messageInput.style.height = '40px';
-        container.style.height = '56px';
-        textarea.style.overflowY = 'hidden';
+        messageInput.value = '';
+        messageInput.style.height = '24px';
+        messageInput.style.overflowY = 'auto';
     }, 0);
 });
 
@@ -427,3 +438,16 @@ setInterval(() => {
 socket.on('pong', () => {
     console.log('Received pong from server');
 });
+
+// Function to send message
+function sendMessage() {
+    const messageInput = document.getElementById('message-text');
+    const message = messageInput.value.trim();
+    if (message && currentRoom) {
+        socket.emit('chat-message', currentRoom, message);
+        messageInput.value = '';
+        // Reset the textarea height
+        messageInput.style.height = '24px';
+        messageInput.style.overflowY = 'auto';
+    }
+}
