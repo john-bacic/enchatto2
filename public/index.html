@@ -425,24 +425,25 @@
     }
 
     function sendMessage() {
-      const messageInput = document.getElementById('message-text');
-      const message = messageInput.value.trim();
-      if (message && username) {
-        socket.emit('chat-message', roomId, message);
-        messageInput.value = '';
-      }
+    const messageInput = document.getElementById('message-text');
+    const message = messageInput.value.trim();
+    if (message && username) {
+      socket.emit('chat-message', roomId, message);
+      messageInput.value = '';
+      messageInput.rows = 1; // Reset the textarea to 1 row after sending
     }
+  }
+
 
 
     const messageInput = document.getElementById('message-text');
 
-  messageInput.addEventListener('input', function () {
-  // Count the newline characters in the textarea's value.
-  const lineBreaks = (this.value.match(/\n/g) || []).length;
-  // Ensure there's at least 1 row.
-  this.rows = Math.max(1, lineBreaks + 1);
-}); 
-    
+    messageInput.addEventListener('input', function () {
+      // Count the newline characters in the textarea's value.
+      const lineBreaks = (this.value.match(/\n/g) || []).length;
+      // Ensure there's at least 1 row.
+      this.rows = Math.max(1, lineBreaks + 1);
+    });
 
     function copyUrl() {
       const url = new URL(window.location.href);
