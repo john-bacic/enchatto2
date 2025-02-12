@@ -431,6 +431,7 @@
       socket.emit('chat-message', roomId, message);
       messageInput.value = '';
       messageInput.rows = 1; // Reset the textarea to 1 row after sending
+      sendButton.classList.remove('visible');
     }
   }
 
@@ -469,8 +470,35 @@
       
       // Set the rows: one row plus any extra rows from wrapping.
       this.rows = 1 + extraRows;
+
     });
 
+
+    // Message input and send button elements
+    const sendButton = document.getElementById('send-button');
+
+    // Function to update send button visibility
+    function updateSendButtonVisibility() {
+        const hasContent = messageInput.value.trim().length > 0;
+        // console.log('Message content:', hasContent); // Debug log
+        
+        if (hasContent) {
+            sendButton.classList.add('visible');
+            // console.log('Showing button');
+        } else {
+            sendButton.classList.remove('visible');
+            // console.log('Hiding button');
+        }
+    }
+
+    // Add input event listeners
+    messageInput.addEventListener('input', updateSendButtonVisibility);
+    messageInput.addEventListener('paste', () => {
+        setTimeout(updateSendButtonVisibility, 0);
+    });
+
+    // Initialize button visibility
+    updateSendButtonVisibility();
 
 
 

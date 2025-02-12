@@ -363,9 +363,19 @@ function autoResizeTextarea(textarea) {
     }
 }
 
-// Event listener for message input
-const messageInput = document.getElementById('message-text');
+// Function to update send button visibility
+// function updateSendButtonVisibility(input) {
+//     const sendButton = document.querySelector('.send-button');
+//     const hasContent = input.value.trim().length > 0;
+    
+//     if (hasContent) {
+//         sendButton.classList.add('visible');
+//     } else {
+//         sendButton.classList.remove('visible');
+//     }
+// }
 
+// Event listener for message input
 // Handle touch events to prevent scrolling issues
 messageInput.addEventListener('touchstart', function(e) {
     if (this.scrollHeight > this.clientHeight) {
@@ -379,15 +389,19 @@ messageInput.addEventListener('touchmove', function(e) {
     }
 }, { passive: true });
 
-// Auto-resize on input
+// Auto-resize on input and update send button
 messageInput.addEventListener('input', function() {
     autoResizeTextarea(this);
+    updateSendButtonVisibility(this);
 });
 
 // Handle paste events
 messageInput.addEventListener('paste', function() {
     // Use setTimeout to wait for the paste to complete
-    setTimeout(() => autoResizeTextarea(this), 0);
+    setTimeout(() => {
+        autoResizeTextarea(this);
+        updateSendButtonVisibility(this);
+    }, 0);
 });
 
 // Handle keydown events for Enter
@@ -403,8 +417,9 @@ messageInput.addEventListener('keydown', function(e) {
     }
 });
 
-// Initialize textarea height
+// Initialize textarea height and button visibility
 autoResizeTextarea(messageInput);
+updateSendButtonVisibility(messageInput);
 
 // Event listener for send button
 document.querySelector('.send-button').addEventListener('click', function() {
@@ -433,7 +448,6 @@ socket.on('pong', () => {
 });
 
 function sendMessage() {
-    const messageInput = document.getElementById('message-text');
     const message = messageInput.value.trim();
     if (message && currentRoom) {
         socket.emit('chat-message', currentRoom, message);
@@ -442,5 +456,7 @@ function sendMessage() {
         messageInput.style.height = '24px';
         messageInput.style.overflowY = 'auto';
         messageInput.setAttribute('rows', '1');
+        // Hide send button
+        updateSendButtonVisibility(messageInput);
     }
 }
