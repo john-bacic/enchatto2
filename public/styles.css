@@ -396,7 +396,7 @@ body {
 
 .message .rp-text {
     display: block;
-    color: #666;
+    color: #68B7CF;
     font-size: 0.9em;
     margin-top: 4px;
     font-style: italic;
@@ -670,7 +670,7 @@ input:checked + .toggle span,
 }
 
 .message .rp-text {
-    color: #ccc;
+    color: #68B7CF;
     font-size: 0.9em;
     opacity: 0.8;
 }
@@ -742,12 +742,12 @@ input:checked + .toggle span,
 }
 
 .message-content .rp-text {
-    color: #eee;
+    color: #B49CEF;
     font-style: italic;
     opacity: 0.9;
     font-size: 0.95em;
     /* padding-left: 16px; */
-    border-left: 2px solid rgba(255, 255, 255, 0.3);
+    border-left: 2px solid #B49CEF99;
 }
 
 .message-header {
