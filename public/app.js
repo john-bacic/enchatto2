@@ -341,48 +341,75 @@ function autoResizeTextarea(textarea) {
     // Apply new height
     textarea.style.height = newHeight + 'px';
     
-    // Always enable scrolling on mobile for better UX
+    // Always enable scrolling
     textarea.style.overflowY = 'auto';
     
     // If at max height, scroll to cursor position
     if (scrollHeight > maxHeight) {
         // Use requestAnimationFrame to ensure the scroll happens after the height change
         requestAnimationFrame(() => {
-            // Get cursor position
             const cursorPosition = textarea.selectionStart;
             const text = textarea.value;
             
-            // Create a temporary div to measure text height
-            const temp = document.createElement('div');
-            temp.style.cssText = window.getComputedStyle(textarea, null).cssText;
-            temp.style.height = 'auto';
-            temp.style.position = 'absolute';
-            temp.style.visibility = 'hidden';
-            temp.textContent = text.substring(0, cursorPosition);
-            document.body.appendChild(temp);
+            // Calculate lines before cursor
+            const linesBeforeCursor = text.substr(0, cursorPosition).split('\n').length;
+            const totalLines = text.split('\n').length;
             
-            // Calculate cursor position and scroll
-            const cursorOffset = Math.min(temp.clientHeight, maxHeight);
-            document.body.removeChild(temp);
-            
-            textarea.scrollTop = cursorOffset - (maxHeight / 2);
+            // Scroll to keep cursor in view
+            const lineHeight = 24; // Approximate line height
+            const scrollPosition = Math.max(0, (linesBeforeCursor - 2) * lineHeight);
+            textarea.scrollTop = scrollPosition;
         });
     }
 }
 
-// Reset rows when sending message
-function sendMessage() {
-    const messageInput = document.getElementById('message-text');
-    const message = messageInput.value.trim();
-    if (message && currentRoom) {
-        socket.emit('chat-message', currentRoom, message);
-        messageInput.value = '';
-        // Reset the textarea height and rows
-        messageInput.style.height = '24px';
-        messageInput.style.overflowY = 'auto';
-        messageInput.setAttribute('rows', '1');
+// Event listener for message input
+const messageInput = document.getElementById('message-text');
+
+// Handle touch events to prevent scrolling issues
+messageInput.addEventListener('touchstart', function(e) {
+    if (this.scrollHeight > this.clientHeight) {
+        e.stopPropagation();
     }
-}
+}, { passive: true });
+
+messageInput.addEventListener('touchmove', function(e) {
+    if (this.scrollHeight > this.clientHeight) {
+        e.stopPropagation();
+    }
+}, { passive: true });
+
+// Auto-resize on input
+messageInput.addEventListener('input', function() {
+    autoResizeTextarea(this);
+});
+
+// Handle paste events
+messageInput.addEventListener('paste', function() {
+    // Use setTimeout to wait for the paste to complete
+    setTimeout(() => autoResizeTextarea(this), 0);
+});
+
+// Handle keydown events for Enter
+messageInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        if (!e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        } else {
+            // For Shift+Enter, update rows after the line break is added
+            setTimeout(() => autoResizeTextarea(this), 0);
+        }
+    }
+});
+
+// Initialize textarea height
+autoResizeTextarea(messageInput);
+
+// Event listener for send button
+document.querySelector('.send-button').addEventListener('click', function() {
+    sendMessage();
+});
 
 socket.on('user-joined', (data) => {
     const messageElement = createMessageElement(`${data.username} joined the room`, true);
@@ -405,50 +432,15 @@ socket.on('pong', () => {
     console.log('Received pong from server');
 });
 
-// Event listener for message input
-const messageInput = document.getElementById('message-text');
-
-// Prevent zoom on double tap for iOS
-messageInput.addEventListener('touchend', function(e) {
-    e.preventDefault();
-    // Don't prevent default if user is selecting text
-    if (document.activeElement === this) {
-        const touch = e.changedTouches[0];
-        const element = document.elementFromPoint(touch.clientX, touch.clientY);
-        if (element === this) {
-            e.preventDefault();
-        }
+function sendMessage() {
+    const messageInput = document.getElementById('message-text');
+    const message = messageInput.value.trim();
+    if (message && currentRoom) {
+        socket.emit('chat-message', currentRoom, message);
+        messageInput.value = '';
+        // Reset the textarea height and rows
+        messageInput.style.height = '24px';
+        messageInput.style.overflowY = 'auto';
+        messageInput.setAttribute('rows', '1');
     }
-});
-
-// Initialize textarea height
-autoResizeTextarea(messageInput);
-
-// Auto-resize on input
-messageInput.addEventListener('input', function() {
-    autoResizeTextarea(this);
-});
-
-// Handle paste events
-messageInput.addEventListener('paste', function() {
-    // Use setTimeout to wait for the paste to complete
-    setTimeout(() => autoResizeTextarea(this), 0);
-});
-
-// Handle keydown events for Enter
-messageInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') {
-        if (!e.shiftKey) {
-            e.preventDefault(); // Prevent default only when not using Shift+Enter
-            sendMessage();
-        } else {
-            // For Shift+Enter, update rows after the line break is added
-            setTimeout(() => autoResizeTextarea(this), 0);
-        }
-    }
-});
-
-// Event listener for send button
-document.querySelector('.send-button').addEventListener('click', function() {
-    sendMessage();
-});
+}
