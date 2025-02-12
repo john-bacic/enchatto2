@@ -11,7 +11,7 @@
     /* Text colors */
     --color-text: #e0e0e0;
     --color-text-muted: #ffffffb3;
-    --color-text-subtle: #ffffff80;
+    --color-text-subtle: #636363;
     
     /* Border colors */
     --color-border: #ffffff1a;
@@ -429,8 +429,8 @@ body {
     border-radius: 12px;
     cursor: pointer;
     user-select: none;
-    transition: all 0.2s ease;
-    opacity: 0.5;
+    transition: background-color 0.2s ease;
+    opacity: 1;
 }
 
 .toggle:hover {
@@ -444,33 +444,28 @@ body {
 .toggle span {
     font-size: 13px;
     font-weight: 600;
-    color: var(--color-text);
-    transition: all 0.2s ease;
+    color: var(--color-text-subtle);
+    transition: color 0.2s ease;
 }
 
-.toggle input:checked + span {
-    color: var(--color-text);
+input#en-toggle:checked + .toggle,
+label[for="en-toggle"]:has(input:checked) {
+    background: #0E85B0;
 }
 
-.toggle input:checked {
-    opacity: 1;
+input#jp-toggle:checked + .toggle,
+label[for="jp-toggle"]:has(input:checked) {
+    background: #9D103F;
 }
 
-.toggle[for="en-toggle"] input:checked + span {
-    color: #4CAF50;
+input#rp-toggle:checked + .toggle,
+label[for="rp-toggle"]:has(input:checked) {
+    background: #DD743B;
 }
 
-.toggle[for="jp-toggle"] input:checked + span {
-    color: #2196F3;
-}
-
-.toggle[for="rp-toggle"] input:checked + span {
-    color: #FFC107;
-}
-
-.toggle input:checked {
-    background: var(--color-bg);
-    opacity: 1;
+input:checked + .toggle span,
+.toggle:has(input:checked) span {
+    color: white;
 }
 
 .message-input-container {
