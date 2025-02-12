@@ -433,6 +433,17 @@
       }
     }
 
+
+    const messageInput = document.getElementById('message-text');
+
+  messageInput.addEventListener('input', function () {
+  // Count the newline characters in the textarea's value.
+  const lineBreaks = (this.value.match(/\n/g) || []).length;
+  // Ensure there's at least 1 row.
+  this.rows = Math.max(1, lineBreaks + 1);
+}); 
+    
+
     function copyUrl() {
       const url = new URL(window.location.href);
       url.searchParams.delete('host');

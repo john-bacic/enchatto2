@@ -334,6 +334,10 @@ function autoResizeTextarea(textarea) {
     const maxHeight = 200;
     const newHeight = Math.min(scrollHeight, maxHeight);
     
+    // Count line breaks and update rows
+    const lineBreaks = (textarea.value.match(/\n/g) || []).length;
+    textarea.setAttribute('rows', String(lineBreaks + 1));
+    
     // Apply new height
     textarea.style.height = newHeight + 'px';
     
@@ -366,57 +370,19 @@ function autoResizeTextarea(textarea) {
     }
 }
 
-// Event listener for message input
-const messageInput = document.getElementById('message-text');
-
-// Auto-resize on input
-messageInput.addEventListener('input', function() {
-    autoResizeTextarea(this);
-});
-
-// Handle paste events
-messageInput.addEventListener('paste', function() {
-    // Use setTimeout to wait for the paste to complete
-    setTimeout(() => autoResizeTextarea(this), 0);
-});
-
-// Handle keydown events for Enter
-messageInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') {
-        if (!e.shiftKey) {
-            e.preventDefault(); // Prevent default only when not using Shift+Enter
-        }
-        // Always resize after a line break
-        setTimeout(() => autoResizeTextarea(this), 0);
-    }
-});
-
-// Prevent zoom on double tap for iOS
-messageInput.addEventListener('touchend', function(e) {
-    e.preventDefault();
-    // Don't prevent default if user is selecting text
-    if (document.activeElement === this) {
-        const touch = e.changedTouches[0];
-        const element = document.elementFromPoint(touch.clientX, touch.clientY);
-        if (element === this) {
-            e.preventDefault();
-        }
-    }
-});
-
-// Initialize textarea height
-autoResizeTextarea(messageInput);
-
-// Event listener for send button
-document.querySelector('.send-button').addEventListener('click', function() {
-    sendMessage();
-    // Reset the textarea height after sending
-    setTimeout(() => {
+// Reset rows when sending message
+function sendMessage() {
+    const messageInput = document.getElementById('message-text');
+    const message = messageInput.value.trim();
+    if (message && currentRoom) {
+        socket.emit('chat-message', currentRoom, message);
         messageInput.value = '';
+        // Reset the textarea height and rows
         messageInput.style.height = '24px';
         messageInput.style.overflowY = 'auto';
-    }, 0);
-});
+        messageInput.setAttribute('rows', '1');
+    }
+}
 
 socket.on('user-joined', (data) => {
     const messageElement = createMessageElement(`${data.username} joined the room`, true);
@@ -439,15 +405,50 @@ socket.on('pong', () => {
     console.log('Received pong from server');
 });
 
-// Function to send message
-function sendMessage() {
-    const messageInput = document.getElementById('message-text');
-    const message = messageInput.value.trim();
-    if (message && currentRoom) {
-        socket.emit('chat-message', currentRoom, message);
-        messageInput.value = '';
-        // Reset the textarea height
-        messageInput.style.height = '24px';
-        messageInput.style.overflowY = 'auto';
+// Event listener for message input
+const messageInput = document.getElementById('message-text');
+
+// Prevent zoom on double tap for iOS
+messageInput.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    // Don't prevent default if user is selecting text
+    if (document.activeElement === this) {
+        const touch = e.changedTouches[0];
+        const element = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (element === this) {
+            e.preventDefault();
+        }
     }
-}
+});
+
+// Initialize textarea height
+autoResizeTextarea(messageInput);
+
+// Auto-resize on input
+messageInput.addEventListener('input', function() {
+    autoResizeTextarea(this);
+});
+
+// Handle paste events
+messageInput.addEventListener('paste', function() {
+    // Use setTimeout to wait for the paste to complete
+    setTimeout(() => autoResizeTextarea(this), 0);
+});
+
+// Handle keydown events for Enter
+messageInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        if (!e.shiftKey) {
+            e.preventDefault(); // Prevent default only when not using Shift+Enter
+            sendMessage();
+        } else {
+            // For Shift+Enter, update rows after the line break is added
+            setTimeout(() => autoResizeTextarea(this), 0);
+        }
+    }
+});
+
+// Event listener for send button
+document.querySelector('.send-button').addEventListener('click', function() {
+    sendMessage();
+});
