@@ -677,11 +677,11 @@ input:checked + .toggle span,
     opacity: 0.8;
 }
 
-.message .rp-text::before {
+/* .message .rp-text::before {
     content: "→";
     margin-right: 4px;
     opacity: 0.8;
-}
+} */
 
 .language-rows {
     display: flex;
