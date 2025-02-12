@@ -52,22 +52,17 @@ function attemptReconnection(immediate = false) {
         } else {
             // Exponential backoff with max delay
             const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 10000);
-            forceReconnectTimer = setTimeout(performReconnect, delay);
+            forceReconnectTimer = setTimeout(() => {
+                performReconnect();
+            }, delay);
         }
+
+        reconnectAttempts++;
     }
 }
 
 function performReconnect() {
-    if (!connectionState.isConnected) {
-        console.log('Performing reconnection...');
-        socket.connect();
-        reconnectAttempts++;
-        
-        // For iOS, try to maintain the connection
-        if (isIOS) {
-            setupKeepAlive();
-        }
-    }
+    socket.connect();
 }
 
 // Keep-alive mechanism for iOS
@@ -75,180 +70,13 @@ function setupKeepAlive() {
     if (keepAliveInterval) {
         clearInterval(keepAliveInterval);
     }
-
-    // Send periodic ping to keep connection alive
+    
     keepAliveInterval = setInterval(() => {
-        if (socket.connected && !connectionState.backgrounded) {
-            socket.emit('ping');
-            console.log('Keep-alive ping sent');
+        if (connectionState.isConnected && currentRoom) {
+            socket.emit('keep-alive', currentRoom);
+            console.log('Keep-alive sent for room:', currentRoom);
         }
-    }, 15000); // Every 15 seconds
-}
-
-// Enhanced visibility change handler
-function handleVisibilityChange() {
-    const isHidden = document.hidden;
-    connectionState.backgrounded = isHidden;
-    
-    if (!isHidden) {
-        console.log('Page visible - checking connection');
-        lastInteraction = Date.now();
-        
-        // Force reconnection if disconnected
-        if (!connectionState.isConnected) {
-            attemptReconnection(true);
-        }
-        
-        // Rejoin room if needed
-        if (connectionState.isConnected && lastKnownRoom && !currentRoom) {
-            console.log('Rejoining room:', lastKnownRoom);
-            socket.emit('join-room', lastKnownRoom, isHost, lastKnownUsername, lastKnownColor);
-        }
-    } else {
-        console.log('Page hidden');
-        // For iOS, try to maintain connection in background
-        if (isIOS) {
-            setupKeepAlive();
-        }
-    }
-}
-
-// Enhanced page lifecycle handlers
-function handlePageShow(event) {
-    console.log('Page shown, persisted:', event.persisted);
-    connectionState.backgrounded = false;
-    lastInteraction = Date.now();
-    
-    if (event.persisted || isIOS) {
-        // Force check connection status
-        if (!socket.connected) {
-            attemptReconnection(true);
-        } else {
-            // Verify connection is still valid
-            socket.emit('ping');
-        }
-    }
-}
-
-function handlePageHide() {
-    connectionState.backgrounded = true;
-    connectionState.lastConnectedAt = Date.now();
-    
-    if (forceReconnectTimer) {
-        clearTimeout(forceReconnectTimer);
-    }
-}
-
-// Connection event handlers
-socket.on('connect', () => {
-    console.log('Socket connected!', socket.id);
-    connectionState.isConnected = true;
-    connectionState.lastConnectedAt = Date.now();
-    connectionState.reconnecting = false;
-    reconnectAttempts = 0;
-
-    if (isIOS) {
-        setupKeepAlive();
-    }
-
-    if (lastKnownRoom) {
-        console.log('Rejoining room after connect:', lastKnownRoom);
-        socket.emit('join-room', lastKnownRoom, isHost, lastKnownUsername, lastKnownColor);
-    }
-});
-
-socket.on('disconnect', (reason) => {
-    console.log('Socket disconnected:', reason);
-    connectionState.isConnected = false;
-    
-    // Handle iOS-specific disconnects
-    if (isIOS && !connectionState.backgrounded) {
-        attemptReconnection();
-    }
-});
-
-socket.on('connect_error', (error) => {
-    console.error('Socket connection error:', error);
-    connectionState.isConnected = false;
-    
-    // For iOS, attempt immediate reconnection if not backgrounded
-    if (isIOS && !connectionState.backgrounded) {
-        attemptReconnection(true);
-    } else {
-        attemptReconnection();
-    }
-});
-
-// Ping response handler
-socket.on('pong', () => {
-    lastInteraction = Date.now();
-    if (isIOS) {
-        // Connection is still alive, reset reconnection attempts
-        reconnectAttempts = 0;
-    }
-});
-
-// Event listeners
-document.addEventListener('visibilitychange', handleVisibilityChange);
-window.addEventListener('pageshow', handlePageShow);
-window.addEventListener('pagehide', handlePageHide);
-
-// iOS-specific event listeners
-if (isIOS) {
-    // Handle app going to background/foreground
-    window.addEventListener('focus', () => {
-        connectionState.backgrounded = false;
-        handleVisibilityChange();
-    });
-    
-    window.addEventListener('blur', () => {
-        connectionState.backgrounded = true;
-    });
-    
-    // Handle device online/offline
-    window.addEventListener('online', () => {
-        connectionState.backgrounded = false;
-        attemptReconnection(true);
-    });
-    
-    window.addEventListener('offline', () => {
-        connectionState.backgrounded = true;
-    });
-}
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
-    if (keepAliveInterval) {
-        clearInterval(keepAliveInterval);
-    }
-});
-
-// Safari-specific detection
-const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-// Enhanced reconnection function
-function attemptReconnection(immediate = false) {
-    if (forceReconnectTimer) {
-        clearTimeout(forceReconnectTimer);
-    }
-
-    if (!connectionState.isConnected && !connectionState.reconnecting) {
-        console.log('Attempting reconnection...');
-        connectionState.reconnecting = true;
-
-        if (immediate) {
-            socket.connect();
-        } else {
-            // Exponential backoff with max delay
-            const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 10000);
-            forceReconnectTimer = setTimeout(() => {
-                socket.connect();
-            }, delay);
-        }
-
-        reconnectAttempts++;
-    }
+    }, 30000);
 }
 
 // Enhanced visibility change handler
@@ -318,25 +146,13 @@ socket.on('connect_error', (error) => {
     attemptReconnection();
 });
 
-// Room event handlers with state tracking
-socket.on('username-assigned', (data) => {
-    username = data.username;
-    lastKnownUsername = data.username;
-    lastKnownColor = data.color;
-    isHost = data.isHost;
-});
-
-socket.on('room-joined', (roomId, userData) => {
-    currentRoom = roomId;
-    lastKnownRoom = roomId;
-    username = userData.username;
-    lastKnownUsername = userData.username;
-    lastKnownColor = userData.color;
-    isHost = userData.isHost;
-    console.log('Joined room:', roomId, 'as:', userData.username);
-    roomNumber.textContent = roomId;
-    welcomeScreen.style.display = 'none';
-    chatScreen.style.display = 'block';
+// Ping response handler
+socket.on('pong', () => {
+    lastInteraction = Date.now();
+    if (isIOS) {
+        // Connection is still alive, reset reconnection attempts
+        reconnectAttempts = 0;
+    }
 });
 
 // Event listeners
@@ -344,11 +160,35 @@ document.addEventListener('visibilitychange', handleVisibilityChange);
 window.addEventListener('pageshow', handlePageShow);
 window.addEventListener('pagehide', handlePageHide);
 
-// Handle mobile-specific events
-if (isMobile) {
-    window.addEventListener('online', () => attemptReconnection(true));
-    window.addEventListener('focus', () => handleVisibilityChange());
+// Safari-specific event listeners
+if (isSafari) {
+    // Handle app going to background/foreground
+    window.addEventListener('focus', () => {
+        connectionState.backgrounded = false;
+        handleVisibilityChange();
+    });
+    
+    window.addEventListener('blur', () => {
+        connectionState.backgrounded = true;
+    });
+    
+    // Handle device online/offline
+    window.addEventListener('online', () => {
+        connectionState.backgrounded = false;
+        attemptReconnection(true);
+    });
+    
+    window.addEventListener('offline', () => {
+        connectionState.backgrounded = true;
+    });
 }
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (keepAliveInterval) {
+        clearInterval(keepAliveInterval);
+    }
+});
 
 // DOM Elements
 const welcomeScreen = document.getElementById('welcome-screen');
