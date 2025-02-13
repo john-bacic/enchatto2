@@ -435,44 +435,16 @@
     }
   }
 
-
-
-    // const messageInput = document.getElementById('message-text');
-
-    // messageInput.addEventListener('input', function () {
-    //   // Count the newline characters in the textarea's value.
-    //   const lineBreaks = (this.value.match(/\n/g) || []).length;
-    //   // Ensure there's at least 1 row.
-    //   this.rows = Math.max(1, lineBreaks + 1);
-    // });
-
+    function autoResizeTextarea(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+    }
 
     const messageInput = document.getElementById('message-text');
-
-    // Get the computed line-height (in pixels) for the textarea.
-    const computedStyle = window.getComputedStyle(messageInput);
-    const lineHeight = parseFloat(computedStyle.lineHeight);
-
-    // Store the initial scrollHeight as the height of one row (including padding)
-    const minHeight = messageInput.scrollHeight;
-
-    messageInput.addEventListener('input', function () {
-      // Reset rows to the minimum (1 row) before recalculating.
-      this.rows = 1;
-      
-      // Calculate how much extra height the current content needs.
-      // (Any extra height beyond the initial minHeight means additional rows.)
-      const extraHeight = this.scrollHeight - minHeight;
-      
-      // Determine how many additional rows are needed.
-      // If the extraHeight is less than one lineHeight, no new row is added.
-      const extraRows = Math.ceil(extraHeight / lineHeight);
-      
-      // Set the rows: one row plus any extra rows from wrapping.
-      this.rows = 1 + extraRows;
-
+    messageInput.addEventListener('input', function() {
+        autoResizeTextarea(this);
+        updateSendButtonVisibility();
     });
-
 
     // Message input and send button elements
     const sendButton = document.getElementById('send-button');
@@ -492,15 +464,12 @@
     }
 
     // Add input event listeners
-    messageInput.addEventListener('input', updateSendButtonVisibility);
     messageInput.addEventListener('paste', () => {
         setTimeout(updateSendButtonVisibility, 0);
     });
 
     // Initialize button visibility
     updateSendButtonVisibility();
-
-
 
     function copyUrl() {
       const url = new URL(window.location.href);
