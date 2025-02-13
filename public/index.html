@@ -100,11 +100,11 @@
     const urlParams = new URLSearchParams(window.location.search);
     let isHost = urlParams.get('host') === 'true';
     const roomId = window.location.pathname.split('/').pop();
-
+  
     // Load stored names from localStorage
     const storedHostName = localStorage.getItem('chatHostUsername');
     const storedGuestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
-
+  
     // Helper to store guest info and update the dropdown
     function storeGuestInfo(name, color) {
       const guestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
@@ -112,12 +112,12 @@
       localStorage.setItem('chatGuestInfo', JSON.stringify(guestInfo));
       updateGuestSelect();
     }
-
+  
     function getGuestInfo(name) {
       const guestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
       return guestInfo[name];
     }
-
+  
     function updateGuestSelect() {
       const select = document.getElementById('previous-guests');
       if (!select) return;
@@ -133,7 +133,7 @@
         select.appendChild(option);
       });
     }
-
+  
     function selectPreviousGuest() {
       const select = document.getElementById('previous-guests');
       const guestNameInput = document.getElementById('guest-name');
@@ -149,13 +149,28 @@
         guestNameInput.style.borderColor = '';
       }
     }
-
+  
     if (storedHostName) {
       const hostNameInput = document.getElementById('host-name');
       if (hostNameInput) hostNameInput.value = storedHostName;
     }
-    if (!isHost) { updateGuestSelect(); }
-
+    if (!isHost) { 
+      updateGuestSelect();
+  
+      // Prepopulate the guest name input just like the host
+      const storedGuestName = localStorage.getItem('chatGuestUsername');
+      if (storedGuestName) {
+        const guestNameInput = document.getElementById('guest-name');
+        if (guestNameInput) {
+          guestNameInput.value = storedGuestName;
+          const guestInfo = getGuestInfo(storedGuestName);
+          if (guestInfo && guestInfo.color) {
+            guestNameInput.style.borderColor = guestInfo.color;
+          }
+        }
+      }
+    }
+  
     // Show/hide sections based on the URL and host flag
     if (window.location.pathname === '/' || window.location.pathname === '') {
       document.getElementById('start-host').style.display = 'flex';
@@ -173,7 +188,7 @@
       document.getElementById('chat-container').style.display = 'flex';
       initializeRoom();
     }
-
+  
     function toggleAccordion(button) {
       button.classList.toggle('active');
       const content = button.nextElementSibling;
@@ -183,7 +198,7 @@
         document.documentElement.style.setProperty('--room-info-height', roomInfo.offsetHeight + 'px');
       }
     }
-
+  
     // Update room-info height on content changes using ResizeObserver
     const observer = new ResizeObserver(entries => {
       for (let entry of entries) {
@@ -194,26 +209,28 @@
     });
     const roomInfoElement = document.querySelector('.room-info');
     if (roomInfoElement) { observer.observe(roomInfoElement); }
-
+  
     // Prevent bounce scrolling on iOS (except in the messages area)
     document.addEventListener('touchmove', function(e) {
       if (e.target.closest('#messages')) return;
       e.preventDefault();
     }, { passive: false });
-
+  
     function startHosting() {
       const storedName = localStorage.getItem('chatHostUsername');
       const hostName = document.getElementById('host-name').value.trim() || storedName || 'Host';
       localStorage.setItem('chatHostUsername', hostName);
       window.location.href = `/room?host=true&hostName=${encodeURIComponent(hostName)}`;
     }
-
+  
     function joinAsGuest() {
       const guestName = document.getElementById('guest-name').value.trim();
       if (!guestName) {
         alert('Please enter a name');
         return;
       }
+      // Save the guest name for future visits (just like the host)
+      localStorage.setItem('chatGuestUsername', guestName);
       const existingInfo = getGuestInfo(guestName);
       const guestColor = existingInfo ? existingInfo.color : null;
       storeGuestInfo(guestName, guestColor);
@@ -221,7 +238,7 @@
       document.getElementById('chat-container').style.display = 'flex';
       initializeRoom();
     }
-
+  
     async function initializeRoom() {
       if (roomId) {
         localStorage.setItem('chatRoomId', roomId);
@@ -248,6 +265,8 @@
           socket.emit('join-room', roomId, isHost, storedName, storedColor);
           document.querySelector('.welcome-screen').style.display = 'none';
           document.querySelector('.chat-container').style.display = 'flex';
+          // Recalculate the minHeight once the chat container is visible
+          minHeight = messageInput.scrollHeight;
           document.getElementById('message-text').focus();
           if (isHost) {
             const qrResponse = await fetch(`/api/room/${roomId}?host=true`);
@@ -264,7 +283,7 @@
         }
       }
     }
-
+  
     // Create a message element. (Note: Removed extra logging in romanji handling for performance.)
     function createMessageElement(msg, isOwn = false) {
       const messageElement = document.createElement('div');
@@ -317,12 +336,12 @@
       
       return messageElement;
     }
-
+  
     // Initialize language toggle elements
     const showEnCheckbox = document.getElementById('en-toggle');
     const showJpCheckbox = document.getElementById('jp-toggle');
     const showRpCheckbox = document.getElementById('rp-toggle');
-
+  
     // Load and save toggle states
     function loadToggleStates() {
       const showEn = localStorage.getItem('showEn');
@@ -353,7 +372,7 @@
     showJpCheckbox.addEventListener('change', () => { updateMessageVisibility(); saveToggleStates(); });
     showRpCheckbox.addEventListener('change', () => { updateMessageVisibility(); saveToggleStates(); });
     loadToggleStates();
-
+  
     // Socket event handlers
     socket.on('username-assigned', (data) => {
       username = data.username;
@@ -371,7 +390,7 @@
       const sendButton = document.getElementById('send-button');
       if (sendButton) { sendButton.style.background = userColor; }
     });
-
+  
     socket.on('user-joined', (data) => {
       addMessage({
         type: 'system',
@@ -401,7 +420,7 @@
       });
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     });
-
+  
     function addMessage(message) {
       const messagesDiv = document.getElementById('messages');
       const messageElement = document.createElement('div');
@@ -423,54 +442,61 @@
       messagesDiv.appendChild(messageElement);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
-
+  
     function sendMessage() {
-    const messageInput = document.getElementById('message-text');
-    const message = messageInput.value.trim();
-    if (message && username) {
-      socket.emit('chat-message', roomId, message);
-      messageInput.value = '';
-      messageInput.rows = 1; // Reset the textarea to 1 row after sending
-      sendButton.classList.remove('visible');
+      const messageInput = document.getElementById('message-text');
+      const message = messageInput.value.trim();
+      if (message && username) {
+        socket.emit('chat-message', roomId, message);
+        messageInput.value = '';
+        messageInput.rows = 1; // Reset the textarea to 1 row after sending
+        sendButton.classList.remove('visible');
+      }
     }
-  }
-
-    function autoResizeTextarea(textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = textarea.scrollHeight + 'px';
-    }
-
+  
     const messageInput = document.getElementById('message-text');
-    messageInput.addEventListener('input', function() {
-        autoResizeTextarea(this);
-        updateSendButtonVisibility();
+    // Get the computed line-height (in pixels) for the textarea.
+    const computedStyle = window.getComputedStyle(messageInput);
+    const lineHeight = parseFloat(computedStyle.lineHeight);
+    // Change from const to let so we can update it after the chat container is visible
+    let minHeight = messageInput.scrollHeight;
+  
+    messageInput.addEventListener('input', function () {
+      // Reset rows to the minimum (1 row) before recalculating.
+      this.rows = 1;
+      
+      // Calculate how much extra height the current content needs.
+      const extraHeight = this.scrollHeight - minHeight;
+      
+      // Determine how many additional rows are needed.
+      const extraRows = Math.ceil(extraHeight / lineHeight);
+      
+      // Set the rows: one row plus any extra rows from wrapping.
+      this.rows = 1 + extraRows;
     });
-
+  
     // Message input and send button elements
     const sendButton = document.getElementById('send-button');
-
+  
     // Function to update send button visibility
     function updateSendButtonVisibility() {
-        const hasContent = messageInput.value.trim().length > 0;
-        // console.log('Message content:', hasContent); // Debug log
-        
-        if (hasContent) {
-            sendButton.classList.add('visible');
-            // console.log('Showing button');
-        } else {
-            sendButton.classList.remove('visible');
-            // console.log('Hiding button');
-        }
+      const hasContent = messageInput.value.trim().length > 0;
+      if (hasContent) {
+        sendButton.classList.add('visible');
+      } else {
+        sendButton.classList.remove('visible');
+      }
     }
-
+  
     // Add input event listeners
+    messageInput.addEventListener('input', updateSendButtonVisibility);
     messageInput.addEventListener('paste', () => {
-        setTimeout(updateSendButtonVisibility, 0);
+      setTimeout(updateSendButtonVisibility, 0);
     });
-
+  
     // Initialize button visibility
     updateSendButtonVisibility();
-
+  
     function copyUrl() {
       const url = new URL(window.location.href);
       url.searchParams.delete('host');
@@ -485,23 +511,23 @@
         }, 2000);
       }).catch(err => { console.error('Failed to copy:', err); });
     }
-
+  
     socket.on('error', (message) => {
       if (message !== 'Room not found') { alert(message); }
     });
-
+  
     socket.on('disconnect', () => {
       console.log('Disconnected from server');
       // Do not force a reconnect here; let built-in reconnection handle it.
     });
-
+  
     socket.on('reconnect', () => {
       console.log('Reconnected to server');
       if (username) {
         socket.emit('join-room', roomId, isHost, username, userColor);
       }
     });
-
+  
     // Debounce helper to prevent rapid firing
     function debounce(func, wait) {
       let timeout;
@@ -510,7 +536,7 @@
         timeout = setTimeout(() => func.apply(this, args), wait);
       };
     }
-
+  
     // Listen for when the page becomes visible (debounced)
     document.addEventListener('visibilitychange', debounce(function() {
       if (!document.hidden) {
@@ -523,6 +549,6 @@
         }
       }
     }, 500));
-  </script>
+  </script>  
 </body>
 </html>
