@@ -1,3 +1,6 @@
+// Detect if running on a mobile browser
+const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+
 // Mobile-friendly page visibility handling
 let visibilityTimeout;
 const VISIBILITY_TIMEOUT_DELAY = 60000; // 1 minute
@@ -31,8 +34,16 @@ document.addEventListener('visibilitychange', () => {
     // Check socket connection
     if (typeof socket !== 'undefined' && socket) {
       if (!socket.connected) {
-        console.log('Socket disconnected—attempting reconnect...');
-        socket.connect();
+        console.log('Socket disconnected.');
+        // On mobile browsers, refresh the page to update chats
+        if (isMobile) {
+          console.log('Mobile browser detected—refreshing page to update chats.');
+          window.location.reload();
+          return; // Stop further processing since the page will reload
+        } else {
+          console.log('Socket disconnected—attempting reconnect...');
+          socket.connect();
+        }
       } else {
         console.log('Socket already connected.');
       }
