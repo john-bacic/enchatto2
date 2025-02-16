@@ -82,7 +82,7 @@ function storeAppState() {
   }
 }
 
-// Modify reinitApp to restore state before rejoining room
+// Modify reinitApp to restore state before rejoining room and refresh chat
 function reinitApp() {
   try {
     const stateStr = localStorage.getItem('appState');
@@ -103,9 +103,42 @@ function reinitApp() {
     if(currentRoom) {
       console.log('Rejoining room:', currentRoom);
       socket.emit('join-room', currentRoom, typeof isHost !== 'undefined' ? isHost : false, username, lastKnownColor);
+      // Refresh the chat: clear chat container so that new messages can be loaded
+      const chatContainer = document.getElementById('chat-screen');
+      if(chatContainer) {
+        chatContainer.innerHTML = '';
+        console.log('Chat window cleared for refresh.');
+      }
     }
   }
   if (window.myAnimationLoop && typeof window.myAnimationLoop.resume === 'function') {
     window.myAnimationLoop.resume();
   }
+}
+
+// Safari-specific event listeners
+if (isSafari) {
+    window.addEventListener('focus', () => {
+        connectionState.backgrounded = false;
+        if (isIOS) {
+            console.log('iOS Safari regained focus; refreshing page to load new chats.');
+            window.location.reload();
+        } else {
+            handleVisibilityChange();
+        }
+    });
+    
+    window.addEventListener('blur', () => {
+        connectionState.backgrounded = true;
+    });
+    
+    // Handle device online/offline
+    window.addEventListener('online', () => {
+        connectionState.backgrounded = false;
+        attemptReconnection(true);
+    });
+    
+    window.addEventListener('offline', () => {
+        connectionState.backgrounded = true;
+    });
 }
