@@ -67,17 +67,44 @@ window.addEventListener('pageshow', (event) => {
   }
 });
 
-// Example reinitialization function (customize this to your app)
+// Add storeAppState function to persist current room state
+function storeAppState() {
+  try {
+    const state = {
+      currentRoom: currentRoom || null,
+      username: username || null,
+      lastKnownColor: lastKnownColor || null
+    };
+    localStorage.setItem('appState', JSON.stringify(state));
+    console.log('App state stored:', state);
+  } catch (e) {
+    console.error('Error storing app state:', e);
+  }
+}
+
+// Modify reinitApp to restore state before rejoining room
 function reinitApp() {
-  // Check socket connection
+  try {
+    const stateStr = localStorage.getItem('appState');
+    if(stateStr) {
+      const state = JSON.parse(stateStr);
+      currentRoom = state.currentRoom || currentRoom;
+      username = state.username || username;
+      lastKnownColor = state.lastKnownColor || lastKnownColor;
+      console.log('Restored app state:', state);
+    }
+  } catch(e) {
+    console.error('Error restoring app state:', e);
+  }
   if (typeof socket !== 'undefined' && socket) {
     if (!socket.connected) {
-      console.log('Socket disconnected during reinit—attempting reconnect...');
       socket.connect();
     }
+    if(currentRoom) {
+      console.log('Rejoining room:', currentRoom);
+      socket.emit('join-room', currentRoom, typeof isHost !== 'undefined' ? isHost : false, username, lastKnownColor);
+    }
   }
-  
-  // Restart your animation loop, timers, or any paused tasks here
   if (window.myAnimationLoop && typeof window.myAnimationLoop.resume === 'function') {
     window.myAnimationLoop.resume();
   }
