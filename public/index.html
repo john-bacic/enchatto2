@@ -11,6 +11,28 @@
     :root {
       --room-info-height: 0px;
     }
+    .welcome-message {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+    }
+    .refresh-button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #1877f2;
+      transition: transform 0.3s ease;
+    }
+    .refresh-button:hover {
+      transform: rotate(180deg);
+      background-color: rgba(24, 119, 242, 0.1);
+    }
   </style>
 </head>
 <body>
@@ -67,9 +89,15 @@
           </label>
         </div>
       </div>
-      <div id="welcome-message"></div>
+      <div id="welcome-message" class="welcome-message">
+        <span id="welcome-text"></span>
+        <button onclick="refreshPage()" class="refresh-button" title="Refresh chat">
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+          </svg>
+        </button>
+      </div>
     </div>
-    <!-- <div id="welcome-message"></div> -->
     <div id="messages"></div>
     <div class="message-input-container">
       <div class="message-input">
@@ -512,13 +540,51 @@
       }).catch(err => { console.error('Failed to copy:', err); });
     }
   
+    function refreshPage() {
+      window.location.reload();
+    }
+    
+    // Update welcome message to include username
+    function updateWelcomeMessage(name) {
+      const welcomeText = document.getElementById('welcome-text');
+      if (welcomeText) {
+        welcomeText.textContent = `You joined as: ${name}`;
+      }
+    }
+    
+    // Modify socket connection handler to refresh page on reconnect
+    socket.on('connect', () => {
+      if (socket.wasDisconnected) {
+        console.log('Reconnected after disconnect - refreshing page');
+        window.location.reload();
+      }
+    });
+    
+    socket.on('disconnect', () => {
+      socket.wasDisconnected = true;
+    });
+    
+    // Update the initializeRoom function to set welcome message
+    const originalInitializeRoom = initializeRoom;
+    initializeRoom = function() {
+      originalInitializeRoom();
+      if (username) {
+        updateWelcomeMessage(username);
+      }
+    };
+    
+    // Update joinAsGuest to set welcome message
+    const originalJoinAsGuest = joinAsGuest;
+    joinAsGuest = function() {
+      originalJoinAsGuest();
+      const guestName = document.getElementById('guest-name').value.trim();
+      if (guestName) {
+        updateWelcomeMessage(guestName);
+      }
+    };
+  
     socket.on('error', (message) => {
       if (message !== 'Room not found') { alert(message); }
-    });
-  
-    socket.on('disconnect', () => {
-      console.log('Disconnected from server');
-      // Do not force a reconnect here; let built-in reconnection handle it.
     });
   
     socket.on('reconnect', () => {
