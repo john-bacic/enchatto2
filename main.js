@@ -31,19 +31,18 @@ document.addEventListener('visibilitychange', () => {
       visibilityTimeout = null;
     }
     
-    // Check socket connection
+    // On mobile browsers, refresh the page when coming back to foreground
+    if (isMobile) {
+      console.log('Mobile browser detected—refreshing page to update chats.');
+      window.location.reload();
+      return;
+    }
+    
+    // For desktop browsers, check socket connection
     if (typeof socket !== 'undefined' && socket) {
       if (!socket.connected) {
-        console.log('Socket disconnected.');
-        // On mobile browsers, refresh the page to update chats
-        if (isMobile) {
-          console.log('Mobile browser detected—refreshing page to update chats.');
-          window.location.reload();
-          return; // Stop further processing since the page will reload
-        } else {
-          console.log('Socket disconnected—attempting reconnect...');
-          socket.connect();
-        }
+        console.log('Socket disconnected—attempting reconnect...');
+        socket.connect();
       } else {
         console.log('Socket already connected.');
       }
