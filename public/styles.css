@@ -324,14 +324,33 @@ body {
 }
 
 #welcome-message {
-    text-align: center;
-    padding: 6px;
-    font-size: 14px;
-    font-weight: bold;
-    background: #2d2d2d;
-    /* border-bottom: 1px solid #363636; */
-    flex-shrink: 0;
-    color: var(--color-text);
+  display: flex;
+  align-items: center;
+  padding: 8px;
+}
+
+.refresh-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1877f2;
+  transition: all 0.3s ease;
+  margin-left: 8px;
+}
+
+.refresh-button:hover {
+  transform: rotate(180deg);
+  background-color: rgba(24, 119, 242, 0.1);
+}
+
+.refresh-button svg {
+  width: 16px;
+  height: 16px;
 }
 
 #messages {
@@ -786,46 +805,6 @@ input:checked + .toggle span,
     font-style: italic;
     padding: 4px 0;
     margin: 8px 0;
-}
-
-/* Welcome message and refresh button styles */
-.welcome-message {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background-color: #f0f2f5;
-  border-radius: 8px;
-  margin: 8px;
-  font-size: 14px;
-}
-
-.welcome-message #welcome-text {
-  color: #1c1e21;
-  font-weight: 500;
-}
-
-.refresh-button {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #1877f2;
-  transition: all 0.3s ease;
-}
-
-.refresh-button:hover {
-  transform: rotate(180deg);
-  background-color: rgba(24, 119, 242, 0.1);
-}
-
-.refresh-button svg {
-  width: 16px;
-  height: 16px;
 }
 
 @media (max-width: 480px) {
