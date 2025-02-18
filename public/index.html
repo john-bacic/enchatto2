@@ -202,21 +202,36 @@
   
     // Show/hide sections based on the URL and host flag
     if (window.location.pathname === '/' || window.location.pathname === '') {
-      document.getElementById('start-host').style.display = 'flex';
-      document.getElementById('room-info').style.display = 'none';
-      document.getElementById('chat-container').style.display = 'none';
-    } else if (!isHost) {
-      document.getElementById('start-host').style.display = 'none';
-      document.getElementById('guest-name-prompt').style.display = 'flex';
-      document.getElementById('room-info').style.display = 'none';
-      document.getElementById('chat-container').style.display = 'none';
-    } else {
-      document.getElementById('start-host').style.display = 'none';
-      document.getElementById('guest-name-prompt').style.display = 'none';
-      document.getElementById('room-info').style.display = isHost ? 'block' : 'none';
-      document.getElementById('chat-container').style.display = 'flex';
-      initializeRoom();
-    }
+  document.getElementById('start-host').style.display = 'flex';
+  document.getElementById('room-info').style.display = 'none';
+  document.getElementById('chat-container').style.display = 'none';
+} else if (!isHost) {
+  const storedGuestName = localStorage.getItem('chatGuestUsername');
+  if (storedGuestName) {
+    // Auto join if a stored guest name exists.
+    document.getElementById('start-host').style.display = 'none';
+    document.getElementById('guest-name-prompt').style.display = 'none';
+    document.getElementById('room-info').style.display = 'none';
+    document.getElementById('chat-container').style.display = 'flex';
+    // Pre-fill the guest name and auto-join the room.
+    const guestNameInput = document.getElementById('guest-name');
+    guestNameInput.value = storedGuestName;
+    joinAsGuest();
+  } else {
+    // No stored guest name, so show the prompt.
+    document.getElementById('start-host').style.display = 'none';
+    document.getElementById('guest-name-prompt').style.display = 'flex';
+    document.getElementById('room-info').style.display = 'none';
+    document.getElementById('chat-container').style.display = 'none';
+  }
+} else {
+  document.getElementById('start-host').style.display = 'none';
+  document.getElementById('guest-name-prompt').style.display = 'none';
+  document.getElementById('room-info').style.display = 'block';
+  document.getElementById('chat-container').style.display = 'flex';
+  initializeRoom();
+}
+
   
     function toggleAccordion(button) {
       button.classList.toggle('active');
