@@ -397,16 +397,12 @@ io.on('connection', (socket) => {
                 
                 room.users.delete(socket.id);
                 
-                // Don't emit user-left message immediately, wait for grace period
-                setTimeout(() => {
-                    const userReconnected = Array.from(room.users.values()).some(u => u.username === userState.username);
-                    if (!userReconnected) {
-                        socket.to(currentRoom).emit('user-left', {
-                            username: userState.username,
-                            color: userState.color
-                        });
-                    }
-                }, 5000); // Short grace period for temporary disconnects
+                // Notify others
+                socket.to(currentRoom).emit('user-left', {
+                    username: userState.username,
+                    color: userState.color,
+                    temporary: true // Mark as temporary for iOS background state
+                });
             }
         }
     });
@@ -426,7 +422,6 @@ io.on('connection', (socket) => {
 
         // Check for existing session
         const existingState = restoreUser(requestedName, roomId);
-        let isReconnecting = false;
         
         // Handle host joining/rejoining
         if (isHost) {
@@ -437,14 +432,12 @@ io.on('connection', (socket) => {
             username = requestedName || 'Host';
             userColor = HOST_COLOR;
             room.hostId = socket.id;
-            isReconnecting = existingState?.isHost;
         } else {
             // Handle guest joining/rejoining
             if (existingState) {
                 // Restore previous guest session
                 username = existingState.username;
                 userColor = existingState.color;
-                isReconnecting = true;
             } else {
                 // New guest
                 room.guestCount = (room.guestCount || 0) + 1;
@@ -453,37 +446,50 @@ io.on('connection', (socket) => {
             }
         }
 
-        // Join the room
-        socket.join(roomId);
+        // Leave current room if in one
+        if (currentRoom) {
+            const oldRoom = rooms.get(currentRoom);
+            if (oldRoom) {
+                // Store state before leaving
+                storeDisconnectedUser(oldRoom, socket);
+                oldRoom.users.delete(socket.id);
+                socket.to(currentRoom).emit('user-left', {
+                    username,
+                    color: userColor
+                });
+            }
+            await socket.leave(currentRoom);
+        }
+
+        // Join new room
+        await socket.join(roomId);
         currentRoom = roomId;
         
-        // Add user to room's user list
-        room.users.set(socket.id, { username, color: userColor });
-        
-        // Send room state to the joining user
-        socket.emit('room-joined', {
+        // Store user in room
+        room.users.set(socket.id, {
+            username,
+            color: userColor
+        });
+
+        // Send user info back
+        socket.emit('username-assigned', {
             username,
             color: userColor,
-            isHost,
-            messages: room.messages || []
+            isHost
         });
-        
-        // Notify others in the room
-        if (!isReconnecting) {
-            // Only emit join message for new users
-            socket.to(roomId).emit('user-joined', {
-                username,
-                color: userColor,
-                isHost
-            });
-        } else {
-            // Emit rejoin message for reconnecting users
-            socket.to(roomId).emit('user-rejoined', {
-                username,
-                color: userColor,
-                isHost
-            });
+
+        // Send recent messages
+        if (room.messages && room.messages.length > 0) {
+            socket.emit('recent-messages', room.messages);
         }
+
+        // Notify others
+        socket.to(roomId).emit('user-joined', {
+            username,
+            color: userColor
+        });
+
+        console.log('=== User Join Complete ===\n');
     });
 
     socket.on('set-username', (roomId, requestedUsername) => {
@@ -496,6 +502,28 @@ io.on('connection', (socket) => {
             // Update user list for all clients in the room
             io.to(roomId).emit('user-list-update', Array.from(room.users.values()));
         }
+    });
+
+    // Handle name changes
+    socket.on('change-name', (roomId, newName) => {
+        if (!currentRoom || !username) return;
+        
+        const room = rooms.get(roomId);
+        if (!room) return;
+        
+        const user = room.users.get(socket.id);
+        if (!user) return;
+        
+        const oldName = username;
+        username = newName;
+        user.username = newName;
+        
+        // Notify all users in the room about the name change
+        io.to(roomId).emit('name-changed', {
+            oldName,
+            newName,
+            color: user.color
+        });
     });
 
     socket.on('chat-message', async (roomId, message) => {

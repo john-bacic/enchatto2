@@ -34,6 +34,18 @@
       transform: rotate(180deg);
       background-color: rgba(24, 119, 242, 0.1);
     }
+    .username-text {
+      position: relative;
+    }
+    .username-text:hover {
+      text-decoration: underline;
+      opacity: 0.8;
+    }
+    .username-text:hover::after {
+      content: '✎';
+      margin-left: 4px;
+      font-size: 12px;
+    }
   </style>
 </head>
 <body>
@@ -96,7 +108,7 @@
             <path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
           </svg>
         </button>
-        <span id="welcome-text"></span>
+        <span id="welcome-text" class="username-text" onclick="showChangeNamePrompt()" style="cursor: pointer;" title="Click to change your name"></span>
       </div>
     </div>
     <div id="messages"></div>
@@ -330,19 +342,23 @@
   
     // Create a message element. (Note: Removed extra logging in romanji handling for performance.)
     function createMessageElement(msg, isOwn = false) {
-      const messageElement = document.createElement('div');
-      messageElement.classList.add('message');
-      if (isOwn) { messageElement.classList.add('own'); }
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${msg.type === 'system' ? 'system-message' : msg.type === 'user' ? 'user-message' : ''}`;
+      if (msg.type === 'user') {
+        messageDiv.setAttribute('data-username', msg.username);  // Add username attribute
+      }
       
-      const usernameSpan = document.createElement('span');
-      usernameSpan.className = 'username';
-      usernameSpan.textContent = msg.username;
-      usernameSpan.style.color = msg.color;
-      messageElement.appendChild(usernameSpan);
+      if (msg.type === 'user') {
+        const usernameSpan = document.createElement('span');
+        usernameSpan.className = 'message-username';
+        usernameSpan.textContent = msg.username;
+        usernameSpan.style.color = msg.color;
+        messageDiv.appendChild(usernameSpan);
+      }
       
       const messageContent = document.createElement('div');
       messageContent.className = 'message-content';
-      messageElement.appendChild(messageContent);
+      messageDiv.appendChild(messageContent);
       
       const originalText = document.createElement('span');
       originalText.className = 'text';
@@ -378,7 +394,7 @@
         messageContent.appendChild(romanjiText);
       }
       
-      return messageElement;
+      return messageDiv;
     }
   
     // Initialize language toggle elements
@@ -436,33 +452,18 @@
     });
   
     socket.on('user-joined', (data) => {
-      const message = {
+      addMessage({
         type: 'system',
-        content: `${data.username} joined the chat`,
-        username: data.username,
+        text: `${data.username} is here!`,
         color: data.color
-      };
-      addMessage(message);
-    });
-    socket.on('user-rejoined', (data) => {
-      const message = {
-        type: 'system',
-        content: `${data.username} rejoined the chat`,
-        username: data.username,
-        color: data.color
-      };
-      addMessage(message);
+      });
     });
     socket.on('user-left', (data) => {
-      if (!data.temporary) {
-        const message = {
-          type: 'system',
-          content: `${data.username} left the chat`,
-          username: data.username,
-          color: data.color
-        };
-        addMessage(message);
-      }
+      addMessage({
+        type: 'system',
+        text: `${data.username} just left!`,
+        color: data.color
+      });
     });
     socket.on('chat-message', (msg) => {
       const messagesDiv = document.getElementById('messages');
@@ -485,7 +486,7 @@
       const messageElement = document.createElement('div');
       if (message.type === 'system') {
         messageElement.className = 'message system';
-        messageElement.textContent = message.content;
+        messageElement.textContent = message.text;
       } else {
         messageElement.className = `message ${message.own ? 'own' : ''}`;
         const usernameSpan = document.createElement('span');
@@ -654,6 +655,94 @@
         }
       }
     }, 500));
+  
+    function showChangeNamePrompt() {
+      if (!isHost) {
+        const currentName = username;  // Store current username
+        
+        // Show guest name prompt
+        const guestPrompt = document.getElementById('guest-name-prompt');
+        const chatContainer = document.getElementById('chat-container');
+        const guestNameInput = document.getElementById('guest-name');
+        const joinButton = document.querySelector('.guest-button');
+        
+        // Pre-fill current name
+        guestNameInput.value = currentName;
+        
+        // Show name change UI
+        guestPrompt.style.display = 'flex';
+        chatContainer.style.display = 'none';
+        joinButton.textContent = 'Change Name';
+        
+        // Store original join function
+        const originalJoinAsGuest = joinAsGuest;
+        
+        // Create new join function for name change
+        joinAsGuest = function() {
+          const newName = guestNameInput.value.trim();
+          if (newName && newName !== currentName) {
+            // Update localStorage and global username
+            localStorage.setItem('chatGuestUsername', newName);
+            username = newName;
+            
+            // Update welcome message
+            const welcomeText = document.getElementById('welcome-text');
+            welcomeText.textContent = `You joined as: ${newName}`;
+            
+            // Update UI
+            guestPrompt.style.display = 'none';
+            chatContainer.style.display = 'flex';
+            
+            // Emit name change to server
+            socket.emit('change-name', currentRoom, newName);
+            
+            // Update existing messages with new name
+            const messages = document.querySelectorAll('.message');
+            messages.forEach(msg => {
+              if (msg.getAttribute('data-username') === currentName) {
+                msg.setAttribute('data-username', newName);
+                const nameElement = msg.querySelector('.message-username');
+                if (nameElement) {
+                  nameElement.textContent = newName;
+                }
+              }
+            });
+            
+            // Reset join button and function
+            joinButton.textContent = 'Join Room';
+            joinAsGuest = originalJoinAsGuest;
+          } else {
+            // If name hasn't changed or is empty, just go back
+            guestPrompt.style.display = 'none';
+            chatContainer.style.display = 'flex';
+            joinButton.textContent = 'Join Room';
+            joinAsGuest = originalJoinAsGuest;
+          }
+        };
+      }
+    }
+    
+    // Add socket handler for name change
+    socket.on('name-changed', (data) => {
+      // Update messages from this user with the new name
+      const messages = document.querySelectorAll('.message');
+      messages.forEach(msg => {
+        if (msg.getAttribute('data-username') === data.oldName) {
+          msg.setAttribute('data-username', data.newName);
+          const nameElement = msg.querySelector('.message-username');
+          if (nameElement) {
+            nameElement.textContent = data.newName;
+          }
+        }
+      });
+      
+      // Add system message about name change
+      addMessage({
+        type: 'system',
+        text: `${data.oldName} changed their name to ${data.newName}`,
+        color: data.color
+      });
+    });
   </script>  
 </body>
 </html>
