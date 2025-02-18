@@ -407,6 +407,24 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Handle manual leave
+    socket.on('leave-chat', () => {
+        if (currentRoom) {
+            const room = rooms.get(currentRoom);
+            if (room && room.users.has(socket.id)) {
+                room.users.delete(socket.id);
+                socket.to(currentRoom).emit('user-left', {
+                    username,
+                    color: userColor
+                });
+                socket.leave(currentRoom);
+                currentRoom = null;
+                username = null;
+                userColor = null;
+            }
+        }
+    });
+
     socket.on('join-room', async (roomId, isHost, requestedName, requestedColor) => {
         console.log('\n=== User Joining Room ===');
         console.log('Room ID:', roomId);
@@ -439,57 +457,58 @@ io.on('connection', (socket) => {
                 username = existingState.username;
                 userColor = existingState.color;
             } else {
-                // New guest
+                // New guest - ensure unique name
                 room.guestCount = (room.guestCount || 0) + 1;
-                username = requestedName || `Guest ${room.guestCount}`;
+                let baseUsername = requestedName || `Guest ${room.guestCount}`;
+                let tempUsername = baseUsername;
+                let counter = 1;
+                
+                // Keep incrementing counter until we find a unique name
+                while ([...room.users.values()].some(user => user.username === tempUsername)) {
+                    tempUsername = `${baseUsername} (${counter})`;
+                    counter++;
+                }
+                
+                username = tempUsername;
                 userColor = requestedColor || generateColor();
             }
         }
 
         // Leave current room if in one
         if (currentRoom) {
+            socket.leave(currentRoom);
             const oldRoom = rooms.get(currentRoom);
             if (oldRoom) {
-                // Store state before leaving
-                storeDisconnectedUser(oldRoom, socket);
                 oldRoom.users.delete(socket.id);
                 socket.to(currentRoom).emit('user-left', {
                     username,
                     color: userColor
                 });
             }
-            await socket.leave(currentRoom);
         }
 
         // Join new room
-        await socket.join(roomId);
         currentRoom = roomId;
+        socket.join(roomId);
+        room.users.set(socket.id, { username, color: userColor });
+
+        // Send room state to the joining user
+        const roomState = {
+            users: [...room.users.values()],
+            messages: room.messages || [],
+            hostId: room.hostId,
+            qrCode: room.qrCode
+        };
         
-        // Store user in room
-        room.users.set(socket.id, {
-            username,
-            color: userColor
-        });
-
-        // Send user info back
-        socket.emit('username-assigned', {
-            username,
-            color: userColor,
-            isHost
-        });
-
-        // Send recent messages
-        if (room.messages && room.messages.length > 0) {
-            socket.emit('recent-messages', room.messages);
-        }
-
-        // Notify others
+        socket.emit('room-joined', roomState);
+        
+        // Notify others in the room
         socket.to(roomId).emit('user-joined', {
             username,
             color: userColor
         });
-
-        console.log('=== User Join Complete ===\n');
+        
+        console.log(`${username} joined room ${roomId}`);
     });
 
     socket.on('set-username', (roomId, requestedUsername) => {
@@ -502,28 +521,6 @@ io.on('connection', (socket) => {
             // Update user list for all clients in the room
             io.to(roomId).emit('user-list-update', Array.from(room.users.values()));
         }
-    });
-
-    // Handle name changes
-    socket.on('change-name', (roomId, newName) => {
-        if (!currentRoom || !username) return;
-        
-        const room = rooms.get(roomId);
-        if (!room) return;
-        
-        const user = room.users.get(socket.id);
-        if (!user) return;
-        
-        const oldName = username;
-        username = newName;
-        user.username = newName;
-        
-        // Notify all users in the room about the name change
-        io.to(roomId).emit('name-changed', {
-            oldName,
-            newName,
-            color: user.color
-        });
     });
 
     socket.on('chat-message', async (roomId, message) => {

@@ -17,7 +17,7 @@
       gap: 8px;
       padding: 8px;
     }
-    .refresh-button {
+    .refresh-button, .leave-button {
       background: none;
       border: none;
       cursor: pointer;
@@ -26,25 +26,33 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: all 0.3s ease;
+    }
+    .refresh-button {
       color: #1877f2;
-      transition: transform 0.3s ease;
-      margin-left: 8px;
+    }
+    .leave-button {
+      color: #dc3545;
+    }
+    .refresh-button:hover, .leave-button:hover {
+      transform: rotate(180deg);
     }
     .refresh-button:hover {
-      transform: rotate(180deg);
       background-color: rgba(24, 119, 242, 0.1);
     }
-    .username-text {
-      position: relative;
+    .leave-button:hover {
+      background-color: rgba(220, 53, 69, 0.1);
     }
-    .username-text:hover {
-      text-decoration: underline;
+    #welcome-text {
+      flex: 1;
+    }
+    .username-link {
+      color: inherit;
+      text-decoration: none;
+      border-bottom: 1px dashed currentColor;
+    }
+    .username-link:hover {
       opacity: 0.8;
-    }
-    .username-text:hover::after {
-      content: '✎';
-      margin-left: 4px;
-      font-size: 12px;
     }
   </style>
 </head>
@@ -108,7 +116,12 @@
             <path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
           </svg>
         </button>
-        <span id="welcome-text" class="username-text" onclick="showChangeNamePrompt()" style="cursor: pointer;" title="Click to change your name"></span>
+        <span id="welcome-text"></span>
+        <button id="leave-button" onclick="leaveChat()" class="leave-button" title="Leave chat" style="display: none;">
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor" d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+          </svg>
+        </button>
       </div>
     </div>
     <div id="messages"></div>
@@ -214,36 +227,45 @@
   
     // Show/hide sections based on the URL and host flag
     if (window.location.pathname === '/' || window.location.pathname === '') {
-  document.getElementById('start-host').style.display = 'flex';
-  document.getElementById('room-info').style.display = 'none';
-  document.getElementById('chat-container').style.display = 'none';
-} else if (!isHost) {
-  const storedGuestName = localStorage.getItem('chatGuestUsername');
-  if (storedGuestName) {
-    // Auto join if a stored guest name exists.
-    document.getElementById('start-host').style.display = 'none';
-    document.getElementById('guest-name-prompt').style.display = 'none';
-    document.getElementById('room-info').style.display = 'none';
-    document.getElementById('chat-container').style.display = 'flex';
-    // Pre-fill the guest name and auto-join the room.
-    const guestNameInput = document.getElementById('guest-name');
-    guestNameInput.value = storedGuestName;
-    joinAsGuest();
-  } else {
-    // No stored guest name, so show the prompt.
-    document.getElementById('start-host').style.display = 'none';
-    document.getElementById('guest-name-prompt').style.display = 'flex';
-    document.getElementById('room-info').style.display = 'none';
-    document.getElementById('chat-container').style.display = 'none';
-  }
-} else {
-  document.getElementById('start-host').style.display = 'none';
-  document.getElementById('guest-name-prompt').style.display = 'none';
-  document.getElementById('room-info').style.display = 'block';
-  document.getElementById('chat-container').style.display = 'flex';
-  initializeRoom();
-}
-
+      document.getElementById('start-host').style.display = 'flex';
+      document.getElementById('room-info').style.display = 'none';
+      document.getElementById('chat-container').style.display = 'none';
+    } else if (!isHost) {
+      const storedGuestName = localStorage.getItem('chatGuestUsername');
+      if (storedGuestName) {
+        // Auto join if a stored guest name exists
+        document.getElementById('start-host').style.display = 'none';
+        document.getElementById('guest-name-prompt').style.display = 'none';
+        document.getElementById('room-info').style.display = 'none';
+        document.getElementById('chat-container').style.display = 'flex';
+        // Show leave button for guests
+        const leaveButton = document.getElementById('leave-button');
+        if (leaveButton) {
+          leaveButton.style.display = 'flex';
+        }
+        // Pre-fill the guest name and auto-join the room
+        const guestNameInput = document.getElementById('guest-name');
+        guestNameInput.value = storedGuestName;
+        joinAsGuest();
+      } else {
+        // No stored guest name, so show the prompt
+        document.getElementById('start-host').style.display = 'none';
+        document.getElementById('guest-name-prompt').style.display = 'flex';
+        document.getElementById('room-info').style.display = 'none';
+        document.getElementById('chat-container').style.display = 'none';
+      }
+    } else {
+      document.getElementById('start-host').style.display = 'none';
+      document.getElementById('guest-name-prompt').style.display = 'none';
+      document.getElementById('room-info').style.display = 'block';
+      document.getElementById('chat-container').style.display = 'flex';
+      // Hide leave button for host
+      const leaveButton = document.getElementById('leave-button');
+      if (leaveButton) {
+        leaveButton.style.display = 'none';
+      }
+      initializeRoom();
+    }
   
     function toggleAccordion(button) {
       button.classList.toggle('active');
@@ -342,23 +364,19 @@
   
     // Create a message element. (Note: Removed extra logging in romanji handling for performance.)
     function createMessageElement(msg, isOwn = false) {
-      const messageDiv = document.createElement('div');
-      messageDiv.className = `message ${msg.type === 'system' ? 'system-message' : msg.type === 'user' ? 'user-message' : ''}`;
-      if (msg.type === 'user') {
-        messageDiv.setAttribute('data-username', msg.username);  // Add username attribute
-      }
+      const messageElement = document.createElement('div');
+      messageElement.classList.add('message');
+      if (isOwn) { messageElement.classList.add('own'); }
       
-      if (msg.type === 'user') {
-        const usernameSpan = document.createElement('span');
-        usernameSpan.className = 'message-username';
-        usernameSpan.textContent = msg.username;
-        usernameSpan.style.color = msg.color;
-        messageDiv.appendChild(usernameSpan);
-      }
+      const usernameSpan = document.createElement('span');
+      usernameSpan.className = 'username';
+      usernameSpan.textContent = msg.username;
+      usernameSpan.style.color = msg.color;
+      messageElement.appendChild(usernameSpan);
       
       const messageContent = document.createElement('div');
       messageContent.className = 'message-content';
-      messageDiv.appendChild(messageContent);
+      messageElement.appendChild(messageContent);
       
       const originalText = document.createElement('span');
       originalText.className = 'text';
@@ -394,7 +412,7 @@
         messageContent.appendChild(romanjiText);
       }
       
-      return messageDiv;
+      return messageElement;
     }
   
     // Initialize language toggle elements
@@ -576,33 +594,46 @@
       window.location.reload();
     }
     
-    // Update welcome message to include username
-    function updateWelcomeMessage(name) {
-      const welcomeText = document.getElementById('welcome-text');
-      if (welcomeText) {
-        welcomeText.textContent = `You joined as: ${name}`;
+    // Function to change guest name
+    function changeGuestName() {
+      if (!isHost) {
+        document.getElementById('chat-container').style.display = 'none';
+        document.getElementById('guest-name-prompt').style.display = 'flex';
+        const guestNameInput = document.getElementById('guest-name');
+        if (guestNameInput) {
+          guestNameInput.value = username || '';
+        }
       }
     }
-    
-    // Modify socket connection handler to refresh page on reconnect
-    socket.on('connect', () => {
-      if (socket.wasDisconnected && !isHost) {
-        console.log('Guest reconnected – refreshing page');
-        window.location.reload();
+
+    // Update welcome message to properly show/hide the leave button based on user type
+    function updateWelcomeMessage(name) {
+      const welcomeText = document.getElementById('welcome-text');
+      const leaveButton = document.getElementById('leave-button');
+      if (welcomeText) {
+        welcomeText.innerHTML = `You joined as: <a href="#" onclick="changeGuestName(); return false;" style="color: inherit; text-decoration: underline;">${name}</a>`;
       }
-    });
-
-    socket.on('disconnect', () => {
-      socket.wasDisconnected = true;
-      if (!isHost) {
-        console.log('Guest disconnected.');
-        // You can also trigger a reload here if desired.
-        // window.location.reload();
+      if (leaveButton) {
+        leaveButton.style.display = isHost ? 'none' : 'flex';
       }
-    });
+    }
 
-
-
+    // Modify joinAsGuest to handle name changes
+    const originalJoinAsGuest = joinAsGuest;
+    joinAsGuest = function() {
+      const oldUsername = username;
+      const newUsername = document.getElementById('guest-name').value.trim();
+      
+      if (oldUsername && newUsername !== oldUsername) {
+        socket.emit('chat-message', roomId, {
+          type: 'system',
+          text: `${oldUsername} changed their name to ${newUsername}`
+        });
+      }
+      
+      originalJoinAsGuest();
+      updateWelcomeMessage(newUsername);
+    };
     
     // Update the initializeRoom function to set welcome message
     const originalInitializeRoom = initializeRoom;
@@ -614,15 +645,35 @@
     };
     
     // Update joinAsGuest to set welcome message
-    const originalJoinAsGuest = joinAsGuest;
+    const originalJoinAsGuest2 = joinAsGuest;
     joinAsGuest = function() {
-      originalJoinAsGuest();
+      originalJoinAsGuest2();
       const guestName = document.getElementById('guest-name').value.trim();
       if (guestName) {
         updateWelcomeMessage(guestName);
       }
     };
-  
+
+    // Function to leave chat
+    function leaveChat() {
+      if (!isHost) {
+        // Hide chat container
+        document.getElementById('chat-container').style.display = 'none';
+        // Show guest name prompt
+        document.getElementById('guest-name-prompt').style.display = 'flex';
+        // Clear the input
+        const guestNameInput = document.getElementById('guest-name');
+        if (guestNameInput) {
+          guestNameInput.value = '';
+        }
+        // Disconnect socket
+        if (socket) {
+          socket.emit('leave-chat');
+          socket.disconnect();
+        }
+      }
+    }
+
     socket.on('error', (message) => {
       if (message !== 'Room not found') { alert(message); }
     });
@@ -655,94 +706,6 @@
         }
       }
     }, 500));
-  
-    function showChangeNamePrompt() {
-      if (!isHost) {
-        const currentName = username;  // Store current username
-        
-        // Show guest name prompt
-        const guestPrompt = document.getElementById('guest-name-prompt');
-        const chatContainer = document.getElementById('chat-container');
-        const guestNameInput = document.getElementById('guest-name');
-        const joinButton = document.querySelector('.guest-button');
-        
-        // Pre-fill current name
-        guestNameInput.value = currentName;
-        
-        // Show name change UI
-        guestPrompt.style.display = 'flex';
-        chatContainer.style.display = 'none';
-        joinButton.textContent = 'Change Name';
-        
-        // Store original join function
-        const originalJoinAsGuest = joinAsGuest;
-        
-        // Create new join function for name change
-        joinAsGuest = function() {
-          const newName = guestNameInput.value.trim();
-          if (newName && newName !== currentName) {
-            // Update localStorage and global username
-            localStorage.setItem('chatGuestUsername', newName);
-            username = newName;
-            
-            // Update welcome message
-            const welcomeText = document.getElementById('welcome-text');
-            welcomeText.textContent = `You joined as: ${newName}`;
-            
-            // Update UI
-            guestPrompt.style.display = 'none';
-            chatContainer.style.display = 'flex';
-            
-            // Emit name change to server
-            socket.emit('change-name', currentRoom, newName);
-            
-            // Update existing messages with new name
-            const messages = document.querySelectorAll('.message');
-            messages.forEach(msg => {
-              if (msg.getAttribute('data-username') === currentName) {
-                msg.setAttribute('data-username', newName);
-                const nameElement = msg.querySelector('.message-username');
-                if (nameElement) {
-                  nameElement.textContent = newName;
-                }
-              }
-            });
-            
-            // Reset join button and function
-            joinButton.textContent = 'Join Room';
-            joinAsGuest = originalJoinAsGuest;
-          } else {
-            // If name hasn't changed or is empty, just go back
-            guestPrompt.style.display = 'none';
-            chatContainer.style.display = 'flex';
-            joinButton.textContent = 'Join Room';
-            joinAsGuest = originalJoinAsGuest;
-          }
-        };
-      }
-    }
-    
-    // Add socket handler for name change
-    socket.on('name-changed', (data) => {
-      // Update messages from this user with the new name
-      const messages = document.querySelectorAll('.message');
-      messages.forEach(msg => {
-        if (msg.getAttribute('data-username') === data.oldName) {
-          msg.setAttribute('data-username', data.newName);
-          const nameElement = msg.querySelector('.message-username');
-          if (nameElement) {
-            nameElement.textContent = data.newName;
-          }
-        }
-      });
-      
-      // Add system message about name change
-      addMessage({
-        type: 'system',
-        text: `${data.oldName} changed their name to ${data.newName}`,
-        color: data.color
-      });
-    });
   </script>  
 </body>
 </html>
