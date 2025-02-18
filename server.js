@@ -439,58 +439,57 @@ io.on('connection', (socket) => {
                 username = existingState.username;
                 userColor = existingState.color;
             } else {
-                // New guest - ensure unique name
+                // New guest
                 room.guestCount = (room.guestCount || 0) + 1;
-                let baseUsername = requestedName || `Guest ${room.guestCount}`;
-                let tempUsername = baseUsername;
-                let counter = 1;
-                
-                // Keep incrementing counter until we find a unique name
-                while ([...room.users.values()].some(user => user.username === tempUsername)) {
-                    tempUsername = `${baseUsername} (${counter})`;
-                    counter++;
-                }
-                
-                username = tempUsername;
+                username = requestedName || `Guest ${room.guestCount}`;
                 userColor = requestedColor || generateColor();
             }
         }
 
         // Leave current room if in one
         if (currentRoom) {
-            socket.leave(currentRoom);
             const oldRoom = rooms.get(currentRoom);
             if (oldRoom) {
+                // Store state before leaving
+                storeDisconnectedUser(oldRoom, socket);
                 oldRoom.users.delete(socket.id);
                 socket.to(currentRoom).emit('user-left', {
                     username,
                     color: userColor
                 });
             }
+            await socket.leave(currentRoom);
         }
 
         // Join new room
+        await socket.join(roomId);
         currentRoom = roomId;
-        socket.join(roomId);
-        room.users.set(socket.id, { username, color: userColor });
+        
+        // Store user in room
+        room.users.set(socket.id, {
+            username,
+            color: userColor
+        });
 
-        // Send room state to the joining user
-        const roomState = {
-            users: [...room.users.values()],
-            messages: room.messages || [],
-            hostId: room.hostId,
-            qrCode: room.qrCode
-        };
-        
-        socket.emit('room-joined', roomState);
-        
-        // Notify others in the room
+        // Send user info back
+        socket.emit('username-assigned', {
+            username,
+            color: userColor,
+            isHost
+        });
+
+        // Send recent messages
+        if (room.messages && room.messages.length > 0) {
+            socket.emit('recent-messages', room.messages);
+        }
+
+        // Notify others
         socket.to(roomId).emit('user-joined', {
             username,
             color: userColor
         });
-        
-        console.log(`${username} joined room ${roomId}`);
+
+        console.log('=== User Join Complete ===\n');
     });
 
     socket.on('set-username', (roomId, requestedUsername) => {

@@ -324,43 +324,14 @@ body {
 }
 
 #welcome-message {
-  display: flex;
-  align-items: center;
-  padding: 8px;
-  text-align: center;
-  font-size: 14px;
-  font-weight: bold;
-  background: #2d2d2d;
-  flex-shrink: 0;
-  color: var(--color-text);
-}
-
-.refresh-button {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #1877f2;
-  transition: all 0.3s ease;
-  margin-right: 8px;
-}
-
-.refresh-button:hover {
-  transform: rotate(180deg);
-  background-color: rgba(24, 119, 242, 0.1);
-}
-
-.refresh-button svg {
-  width: 16px;
-  height: 16px;
-}
-
-.welcome-text {
-  flex: 1;
+    text-align: center;
+    padding: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    background: #2d2d2d;
+    /* border-bottom: 1px solid #363636; */
+    flex-shrink: 0;
+    color: var(--color-text);
 }
 
 #messages {

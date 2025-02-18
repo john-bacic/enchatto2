@@ -11,37 +11,6 @@
     :root {
       --room-info-height: 0px;
     }
-    .welcome-message {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px;
-    }
-    .refresh-button {
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: 4px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #1877f2;
-      transition: transform 0.3s ease;
-      margin-left: 8px;
-    }
-    .refresh-button:hover {
-      transform: rotate(180deg);
-      background-color: rgba(24, 119, 242, 0.1);
-    }
-    .username-link {
-      color: inherit;
-      text-decoration: none;
-      border-bottom: 1px dashed currentColor;
-    }
-    .username-link:hover {
-      opacity: 0.8;
-    }
   </style>
 </head>
 <body>
@@ -98,15 +67,9 @@
           </label>
         </div>
       </div>
-      <div id="welcome-message" class="welcome-message">
-        <button onclick="refreshPage()" class="refresh-button" title="Refresh chat">
-          <svg viewBox="0 0 24 24" width="16" height="16">
-            <path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-          </svg>
-        </button>
-        <span id="welcome-text"></span>
-      </div>
+      <div id="welcome-message"></div>
     </div>
+    <!-- <div id="welcome-message"></div> -->
     <div id="messages"></div>
     <div class="message-input-container">
       <div class="message-input">
@@ -210,36 +173,21 @@
   
     // Show/hide sections based on the URL and host flag
     if (window.location.pathname === '/' || window.location.pathname === '') {
-  document.getElementById('start-host').style.display = 'flex';
-  document.getElementById('room-info').style.display = 'none';
-  document.getElementById('chat-container').style.display = 'none';
-} else if (!isHost) {
-  const storedGuestName = localStorage.getItem('chatGuestUsername');
-  if (storedGuestName) {
-    // Auto join if a stored guest name exists.
-    document.getElementById('start-host').style.display = 'none';
-    document.getElementById('guest-name-prompt').style.display = 'none';
-    document.getElementById('room-info').style.display = 'none';
-    document.getElementById('chat-container').style.display = 'flex';
-    // Pre-fill the guest name and auto-join the room.
-    const guestNameInput = document.getElementById('guest-name');
-    guestNameInput.value = storedGuestName;
-    joinAsGuest();
-  } else {
-    // No stored guest name, so show the prompt.
-    document.getElementById('start-host').style.display = 'none';
-    document.getElementById('guest-name-prompt').style.display = 'flex';
-    document.getElementById('room-info').style.display = 'none';
-    document.getElementById('chat-container').style.display = 'none';
-  }
-} else {
-  document.getElementById('start-host').style.display = 'none';
-  document.getElementById('guest-name-prompt').style.display = 'none';
-  document.getElementById('room-info').style.display = 'block';
-  document.getElementById('chat-container').style.display = 'flex';
-  initializeRoom();
-}
-
+      document.getElementById('start-host').style.display = 'flex';
+      document.getElementById('room-info').style.display = 'none';
+      document.getElementById('chat-container').style.display = 'none';
+    } else if (!isHost) {
+      document.getElementById('start-host').style.display = 'none';
+      document.getElementById('guest-name-prompt').style.display = 'flex';
+      document.getElementById('room-info').style.display = 'none';
+      document.getElementById('chat-container').style.display = 'none';
+    } else {
+      document.getElementById('start-host').style.display = 'none';
+      document.getElementById('guest-name-prompt').style.display = 'none';
+      document.getElementById('room-info').style.display = isHost ? 'block' : 'none';
+      document.getElementById('chat-container').style.display = 'flex';
+      initializeRoom();
+    }
   
     function toggleAccordion(button) {
       button.classList.toggle('active');
@@ -446,14 +394,14 @@
     socket.on('user-joined', (data) => {
       addMessage({
         type: 'system',
-        text: `${data.username} is here!`,
+        text: `${data.username} joined the chat`,
         color: data.color
       });
     });
     socket.on('user-left', (data) => {
       addMessage({
         type: 'system',
-        text: `${data.username} just left!`,
+        text: `${data.username} left the chat`,
         color: data.color
       });
     });
@@ -564,68 +512,13 @@
       }).catch(err => { console.error('Failed to copy:', err); });
     }
   
-    function refreshPage() {
-      window.location.reload();
-    }
-    
-    // Function to change guest name
-    function changeGuestName() {
-      if (!isHost) {
-        document.getElementById('chat-container').style.display = 'none';
-        document.getElementById('guest-name-prompt').style.display = 'flex';
-        const guestNameInput = document.getElementById('guest-name');
-        if (guestNameInput) {
-          guestNameInput.value = username || '';
-        }
-      }
-    }
-
-    // Update welcome message to include clickable username
-    function updateWelcomeMessage(name) {
-      const welcomeText = document.getElementById('welcome-text');
-      if (welcomeText) {
-        welcomeText.innerHTML = 'You joined as: <a href="#" onclick="changeGuestName(); return false;" style="color: inherit; text-decoration: underline;">' + name + '</a>';
-      }
-    }
-
-    // Modify joinAsGuest to handle name changes
-    const originalJoinAsGuest = joinAsGuest;
-    joinAsGuest = function() {
-      const oldUsername = username;
-      const newUsername = document.getElementById('guest-name').value.trim();
-      
-      if (oldUsername && newUsername !== oldUsername) {
-        socket.emit('chat-message', roomId, {
-          type: 'system',
-          text: `${oldUsername} changed their name to ${newUsername}`
-        });
-      }
-      
-      originalJoinAsGuest();
-      updateWelcomeMessage(newUsername);
-    };
-    
-    // Update the initializeRoom function to set welcome message
-    const originalInitializeRoom = initializeRoom;
-    initializeRoom = function() {
-      originalInitializeRoom();
-      if (username) {
-        updateWelcomeMessage(username);
-      }
-    };
-    
-    // Update joinAsGuest to set welcome message
-    const originalJoinAsGuest2 = joinAsGuest;
-    joinAsGuest = function() {
-      originalJoinAsGuest2();
-      const guestName = document.getElementById('guest-name').value.trim();
-      if (guestName) {
-        updateWelcomeMessage(guestName);
-      }
-    };
-  
     socket.on('error', (message) => {
       if (message !== 'Room not found') { alert(message); }
+    });
+  
+    socket.on('disconnect', () => {
+      console.log('Disconnected from server');
+      // Do not force a reconnect here; let built-in reconnection handle it.
     });
   
     socket.on('reconnect', () => {
