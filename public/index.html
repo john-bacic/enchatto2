@@ -563,7 +563,20 @@
     
     socket.on('disconnect', () => {
       socket.wasDisconnected = true;
+      if (!isHost) {
+        console.log('Guest disconnected.');
+        // Optionally, you could hide elements here or show a reconnect message.
+      }
     });
+
+    socket.on('connect', () => {
+      if (socket.wasDisconnected && !isHost) {
+        console.log('Reconnected after disconnect – refreshing page');
+        window.location.reload();
+      }
+    });
+
+
     
     // Update the initializeRoom function to set welcome message
     const originalInitializeRoom = initializeRoom;
