@@ -17,7 +17,7 @@
       gap: 8px;
       padding: 8px;
     }
-    .refresh-button, .leave-button {
+    .refresh-button {
       background: none;
       border: none;
       cursor: pointer;
@@ -26,25 +26,13 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.3s ease;
-    }
-    .refresh-button {
       color: #1877f2;
-    }
-    .leave-button {
-      color: #dc3545;
-    }
-    .refresh-button:hover, .leave-button:hover {
-      transform: rotate(180deg);
+      transition: transform 0.3s ease;
+      margin-left: 8px;
     }
     .refresh-button:hover {
+      transform: rotate(180deg);
       background-color: rgba(24, 119, 242, 0.1);
-    }
-    .leave-button:hover {
-      background-color: rgba(220, 53, 69, 0.1);
-    }
-    #welcome-text {
-      flex: 1;
     }
     .username-link {
       color: inherit;
@@ -117,11 +105,6 @@
           </svg>
         </button>
         <span id="welcome-text"></span>
-        <button id="leave-button" onclick="leaveChat()" class="leave-button" title="Leave chat" style="display: none;">
-          <svg viewBox="0 0 24 24" width="16" height="16">
-            <path fill="currentColor" d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
-          </svg>
-        </button>
       </div>
     </div>
     <div id="messages"></div>
@@ -227,45 +210,36 @@
   
     // Show/hide sections based on the URL and host flag
     if (window.location.pathname === '/' || window.location.pathname === '') {
-      document.getElementById('start-host').style.display = 'flex';
-      document.getElementById('room-info').style.display = 'none';
-      document.getElementById('chat-container').style.display = 'none';
-    } else if (!isHost) {
-      const storedGuestName = localStorage.getItem('chatGuestUsername');
-      if (storedGuestName) {
-        // Auto join if a stored guest name exists
-        document.getElementById('start-host').style.display = 'none';
-        document.getElementById('guest-name-prompt').style.display = 'none';
-        document.getElementById('room-info').style.display = 'none';
-        document.getElementById('chat-container').style.display = 'flex';
-        // Show leave button for guests
-        const leaveButton = document.getElementById('leave-button');
-        if (leaveButton) {
-          leaveButton.style.display = 'flex';
-        }
-        // Pre-fill the guest name and auto-join the room
-        const guestNameInput = document.getElementById('guest-name');
-        guestNameInput.value = storedGuestName;
-        joinAsGuest();
-      } else {
-        // No stored guest name, so show the prompt
-        document.getElementById('start-host').style.display = 'none';
-        document.getElementById('guest-name-prompt').style.display = 'flex';
-        document.getElementById('room-info').style.display = 'none';
-        document.getElementById('chat-container').style.display = 'none';
-      }
-    } else {
-      document.getElementById('start-host').style.display = 'none';
-      document.getElementById('guest-name-prompt').style.display = 'none';
-      document.getElementById('room-info').style.display = 'block';
-      document.getElementById('chat-container').style.display = 'flex';
-      // Hide leave button for host
-      const leaveButton = document.getElementById('leave-button');
-      if (leaveButton) {
-        leaveButton.style.display = 'none';
-      }
-      initializeRoom();
-    }
+  document.getElementById('start-host').style.display = 'flex';
+  document.getElementById('room-info').style.display = 'none';
+  document.getElementById('chat-container').style.display = 'none';
+} else if (!isHost) {
+  const storedGuestName = localStorage.getItem('chatGuestUsername');
+  if (storedGuestName) {
+    // Auto join if a stored guest name exists.
+    document.getElementById('start-host').style.display = 'none';
+    document.getElementById('guest-name-prompt').style.display = 'none';
+    document.getElementById('room-info').style.display = 'none';
+    document.getElementById('chat-container').style.display = 'flex';
+    // Pre-fill the guest name and auto-join the room.
+    const guestNameInput = document.getElementById('guest-name');
+    guestNameInput.value = storedGuestName;
+    joinAsGuest();
+  } else {
+    // No stored guest name, so show the prompt.
+    document.getElementById('start-host').style.display = 'none';
+    document.getElementById('guest-name-prompt').style.display = 'flex';
+    document.getElementById('room-info').style.display = 'none';
+    document.getElementById('chat-container').style.display = 'none';
+  }
+} else {
+  document.getElementById('start-host').style.display = 'none';
+  document.getElementById('guest-name-prompt').style.display = 'none';
+  document.getElementById('room-info').style.display = 'block';
+  document.getElementById('chat-container').style.display = 'flex';
+  initializeRoom();
+}
+
   
     function toggleAccordion(button) {
       button.classList.toggle('active');
@@ -606,15 +580,11 @@
       }
     }
 
-    // Update welcome message to properly show/hide the leave button based on user type
+    // Update welcome message to include clickable username
     function updateWelcomeMessage(name) {
       const welcomeText = document.getElementById('welcome-text');
-      const leaveButton = document.getElementById('leave-button');
       if (welcomeText) {
-        welcomeText.innerHTML = `You joined as: <a href="#" onclick="changeGuestName(); return false;" style="color: inherit; text-decoration: underline;">${name}</a>`;
-      }
-      if (leaveButton) {
-        leaveButton.style.display = isHost ? 'none' : 'flex';
+        welcomeText.innerHTML = 'You joined as: <a href="#" onclick="changeGuestName(); return false;" style="color: inherit; text-decoration: underline;">' + name + '</a>';
       }
     }
 
@@ -653,27 +623,7 @@
         updateWelcomeMessage(guestName);
       }
     };
-
-    // Function to leave chat
-    function leaveChat() {
-      if (!isHost) {
-        // Hide chat container
-        document.getElementById('chat-container').style.display = 'none';
-        // Show guest name prompt
-        document.getElementById('guest-name-prompt').style.display = 'flex';
-        // Clear the input
-        const guestNameInput = document.getElementById('guest-name');
-        if (guestNameInput) {
-          guestNameInput.value = '';
-        }
-        // Disconnect socket
-        if (socket) {
-          socket.emit('leave-chat');
-          socket.disconnect();
-        }
-      }
-    }
-
+  
     socket.on('error', (message) => {
       if (message !== 'Room not found') { alert(message); }
     });

@@ -407,24 +407,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Handle manual leave
-    socket.on('leave-chat', () => {
-        if (currentRoom) {
-            const room = rooms.get(currentRoom);
-            if (room && room.users.has(socket.id)) {
-                room.users.delete(socket.id);
-                socket.to(currentRoom).emit('user-left', {
-                    username,
-                    color: userColor
-                });
-                socket.leave(currentRoom);
-                currentRoom = null;
-                username = null;
-                userColor = null;
-            }
-        }
-    });
-
     socket.on('join-room', async (roomId, isHost, requestedName, requestedColor) => {
         console.log('\n=== User Joining Room ===');
         console.log('Room ID:', roomId);
