@@ -570,26 +570,21 @@
     
     // Modify socket connection handler to refresh page on reconnect
     socket.on('connect', () => {
-      if (socket.wasDisconnected) {
-        console.log('Reconnected after disconnect - refreshing page');
+      if (socket.wasDisconnected && !isHost) {
+        console.log('Guest reconnected – refreshing page');
         window.location.reload();
       }
     });
-    
+
     socket.on('disconnect', () => {
       socket.wasDisconnected = true;
       if (!isHost) {
         console.log('Guest disconnected.');
-        // Optionally, you could hide elements here or show a reconnect message.
+        // You can also trigger a reload here if desired.
+        // window.location.reload();
       }
     });
 
-    socket.on('connect', () => {
-      if (socket.wasDisconnected && !isHost) {
-        console.log('Reconnected after disconnect – refreshing page');
-        window.location.reload();
-      }
-    });
 
 
     
