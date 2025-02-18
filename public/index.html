@@ -436,18 +436,33 @@
     });
   
     socket.on('user-joined', (data) => {
-      addMessage({
+      const message = {
         type: 'system',
-        text: `${data.username} joined the chat`,
+        content: `${data.username} joined the chat`,
+        username: data.username,
         color: data.color
-      });
+      };
+      addMessage(message);
+    });
+    socket.on('user-rejoined', (data) => {
+      const message = {
+        type: 'system',
+        content: `${data.username} rejoined the chat`,
+        username: data.username,
+        color: data.color
+      };
+      addMessage(message);
     });
     socket.on('user-left', (data) => {
-      addMessage({
-        type: 'system',
-        text: `${data.username} left the chat`,
-        color: data.color
-      });
+      if (!data.temporary) {
+        const message = {
+          type: 'system',
+          content: `${data.username} left the chat`,
+          username: data.username,
+          color: data.color
+        };
+        addMessage(message);
+      }
     });
     socket.on('chat-message', (msg) => {
       const messagesDiv = document.getElementById('messages');
@@ -470,7 +485,7 @@
       const messageElement = document.createElement('div');
       if (message.type === 'system') {
         messageElement.className = 'message system';
-        messageElement.textContent = message.text;
+        messageElement.textContent = message.content;
       } else {
         messageElement.className = `message ${message.own ? 'own' : ''}`;
         const usernameSpan = document.createElement('span');
