@@ -138,6 +138,7 @@ socket.on('disconnect', (reason) => {
     if (isSafari && reason === 'transport close') {
         attemptReconnection();
     }
+    showReconnectOverlay();
 });
 
 socket.on('connect_error', (error) => {
@@ -470,4 +471,32 @@ function sendMessage() {
         // Hide send button
         updateSendButtonVisibility(messageInput);
     }
+}
+
+// Connection lost overlay for disconnect events
+function showReconnectOverlay() {
+    const overlay = document.createElement('div');
+    overlay.id = 'reconnect-overlay';
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.5)';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.zIndex = '1000';
+    
+    const button = document.createElement('button');
+    button.innerText = 'Reconnect';
+    button.style.padding = '1em 2em';
+    button.style.fontSize = '1.5em';
+    button.style.cursor = 'pointer';
+    button.onclick = function() {
+        location.reload();
+    };
+    
+    overlay.appendChild(button);
+    document.body.appendChild(overlay);
 }
