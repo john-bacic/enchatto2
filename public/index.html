@@ -315,6 +315,18 @@
       usernameSpan.className = 'username';
       usernameSpan.textContent = msg.username;
       usernameSpan.style.color = msg.color;
+      
+      // Add connection dot
+      const dot = document.createElement('span');
+      dot.className = 'connection-dot';
+      dot.style.display = 'inline-block';
+      dot.style.width = '8px';
+      dot.style.height = '8px';
+      dot.style.borderRadius = '50%';
+      dot.style.marginLeft = '5px';
+      dot.style.backgroundColor = socket.connected ? '#2ecc71' : '#95a5a6';
+      usernameSpan.appendChild(dot);
+      
       messageElement.appendChild(usernameSpan);
       
       const messageContent = document.createElement('div');
