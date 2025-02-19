@@ -190,6 +190,17 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
+// Refresh chat on mobile platforms when returning to chat
+if (/Mobi|Android/i.test(navigator.userAgent)) {
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            // Refresh chat for both Host and Guest
+            // This implementation reloads the page; customize if a partial refresh is desired
+            location.reload();
+        }
+    });
+}
+
 // DOM Elements
 const welcomeScreen = document.getElementById('welcome-screen');
 const chatScreen = document.getElementById('chat-screen');
