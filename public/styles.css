@@ -688,27 +688,11 @@ input:checked + .toggle span,
     opacity: 0.8;
 }
 
-.connection-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-left: 5px;
-    vertical-align: middle;
-    transition: background-color 0.3s ease;
-}
-
-.message-header {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.username {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-}
+/* .message .rp-text::before {
+    content: "→";
+    margin-right: 4px;
+    opacity: 0.8;
+} */
 
 .language-rows {
     display: flex;

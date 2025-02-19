@@ -32,9 +32,6 @@ let connectionState = {
     backgrounded: false
 };
 
-// Track user connection states
-const userStates = new Map();
-
 // Device detection
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
@@ -126,14 +123,21 @@ socket.on('connect', () => {
     connectionState.lastConnectedAt = Date.now();
     connectionState.reconnecting = false;
     reconnectAttempts = 0;
-    updateAllConnectionDots(true);
+
+    if (lastKnownRoom) {
+        console.log('Rejoining room after connect:', lastKnownRoom);
+        socket.emit('join-room', lastKnownRoom, isHost, lastKnownUsername, lastKnownColor);
+    }
 });
 
 socket.on('disconnect', (reason) => {
     console.log('Socket disconnected:', reason);
     connectionState.isConnected = false;
-    updateAllConnectionDots(false);
-    showReconnectOverlay();
+    
+    // Handle Safari-specific disconnects
+    if (isSafari && reason === 'transport close') {
+        attemptReconnection();
+    }
 });
 
 socket.on('connect_error', (error) => {
@@ -151,40 +155,63 @@ socket.on('pong', () => {
     }
 });
 
-// Function to update all connection dots
-function updateAllConnectionDots(connected) {
-    document.querySelectorAll('.connection-dot').forEach(dot => {
-        dot.style.backgroundColor = connected ? '#2ecc71' : '#95a5a6';
-        dot.title = connected ? 'Connected' : 'Disconnected';
+// Event listeners
+document.addEventListener('visibilitychange', handleVisibilityChange);
+window.addEventListener('pageshow', handlePageShow);
+window.addEventListener('pagehide', handlePageHide);
+
+// Safari-specific event listeners
+if (isSafari) {
+    // Handle app going to background/foreground
+    window.addEventListener('focus', () => {
+        connectionState.backgrounded = false;
+        handleVisibilityChange();
+    });
+    
+    window.addEventListener('blur', () => {
+        connectionState.backgrounded = true;
+    });
+    
+    // Handle device online/offline
+    window.addEventListener('online', () => {
+        connectionState.backgrounded = false;
+        attemptReconnection(true);
+    });
+    
+    window.addEventListener('offline', () => {
+        connectionState.backgrounded = true;
     });
 }
 
-// Handle user left/joined events
-socket.on('user-joined', (data) => {
-    console.log('User joined:', data);
-    userStates.set(data.username, true);
-    updateUserDots(data.username, true);
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (keepAliveInterval) {
+        clearInterval(keepAliveInterval);
+    }
 });
 
-socket.on('user-left', (data) => {
-    console.log('User left:', data);
-    userStates.set(data.username, false);
-    updateUserDots(data.username, false);
+// DOM Elements
+const welcomeScreen = document.getElementById('welcome-screen');
+const chatScreen = document.getElementById('chat-screen');
+const createRoomBtn = document.getElementById('create-room-btn');
+const joinRoomBtn = document.getElementById('join-room-btn');
+const roomInput = document.getElementById('room-input');
+const roomNumber = document.getElementById('room-number');
+const messageInput = document.getElementById('message-text');
+const sendBtn = document.getElementById('send-button');
+const messages = document.getElementById('messages');
+
+// Event Listeners
+createRoomBtn.addEventListener('click', () => {
+    socket.emit('create-room');
 });
 
-// Function to update dots for a specific user
-function updateUserDots(username, isConnected) {
-    document.querySelectorAll('.message').forEach(messageEl => {
-        const usernameEl = messageEl.querySelector('.username');
-        if (usernameEl && usernameEl.textContent === username) {
-            const dot = usernameEl.querySelector('.connection-dot');
-            if (dot) {
-                dot.style.backgroundColor = isConnected ? '#2ecc71' : '#95a5a6';
-                dot.title = isConnected ? 'Connected' : 'Disconnected';
-            }
-        }
-    });
-}
+joinRoomBtn.addEventListener('click', () => {
+    const roomId = roomInput.value.trim();
+    if (roomId) {
+        socket.emit('join-room', roomId);
+    }
+});
 
 // Function to create a message element with consistent structure
 function createMessageElement(data, isSystem = false) {
@@ -210,31 +237,16 @@ function createMessageElement(data, isSystem = false) {
     const header = document.createElement('div');
     header.className = 'message-header';
     
-    const usernameSpan = document.createElement('span');
-    usernameSpan.className = 'username';
-    usernameSpan.style.color = color;
-    usernameSpan.textContent = username;
-    
-    const dot = document.createElement('span');
-    dot.className = 'connection-dot';
-    dot.style.display = 'inline-block';
-    dot.style.width = '8px';
-    dot.style.height = '8px';
-    dot.style.borderRadius = '50%';
-    dot.style.marginLeft = '5px';
-    
-    // Check if it's the user's own message or another user's message
-    const isConnected = data.username === window.username ? socket.connected : userStates.get(data.username) ?? true;
-    dot.style.backgroundColor = isConnected ? '#2ecc71' : '#95a5a6';
-    dot.title = isConnected ? 'Connected' : 'Disconnected';
-    
-    usernameSpan.appendChild(dot);
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'username';
+    nameSpan.style.color = color;
+    nameSpan.textContent = username;
     
     const timeSpan = document.createElement('span');
     timeSpan.className = 'timestamp';
     timeSpan.textContent = new Date(timestamp).toLocaleTimeString();
     
-    header.appendChild(usernameSpan);
+    header.appendChild(nameSpan);
     header.appendChild(timeSpan);
     
     const textDiv = document.createElement('div');
@@ -256,43 +268,6 @@ function createMessageElement(data, isSystem = false) {
     messageDiv.appendChild(messageContent);
     
     return messageDiv;
-}
-
-// Add connection dot to chat bubbles next to username
-function addConnectionDot(usernameElement, isConnected) {
-    // If no dot exists already, create one
-    if (!usernameElement.querySelector('.connection-dot')) {
-        let dot = document.createElement('span');
-        dot.className = 'connection-dot';
-        dot.style.display = 'inline-block';
-        dot.style.width = '8px';
-        dot.style.height = '8px';
-        dot.style.borderRadius = '50%';
-        dot.style.marginLeft = '5px';
-        dot.style.backgroundColor = isConnected ? 'green' : 'darkgrey';
-        usernameElement.appendChild(dot);
-    } else {
-        // Update existing dot's color
-        let dot = usernameElement.querySelector('.connection-dot');
-        dot.style.backgroundColor = isConnected ? 'green' : 'darkgrey';
-    }
-}
-
-function updateConnectionDots(isConnected) {
-    const usernameElems = document.querySelectorAll('.chat-bubble .username');
-    usernameElems.forEach(el => {
-        addConnectionDot(el, isConnected);
-    });
-}
-
-// Listen to websocket events (using 'ws' as the connection variable if defined)
-if (typeof ws !== 'undefined') {
-    ws.addEventListener('open', function() {
-        updateConnectionDots(true);
-    });
-    ws.addEventListener('close', function() {
-        updateConnectionDots(false);
-    });
 }
 
 // Socket event handlers
@@ -417,7 +392,7 @@ messageInput.addEventListener('touchmove', function(e) {
 // Auto-resize on input and update send button
 messageInput.addEventListener('input', function() {
     autoResizeTextarea(this);
-    // updateSendButtonVisibility(this);
+    updateSendButtonVisibility(this);
 });
 
 // Handle paste events
@@ -425,7 +400,7 @@ messageInput.addEventListener('paste', function() {
     // Use setTimeout to wait for the paste to complete
     setTimeout(() => {
         autoResizeTextarea(this);
-        // updateSendButtonVisibility(this);
+        updateSendButtonVisibility(this);
     }, 0);
 });
 
@@ -444,7 +419,7 @@ messageInput.addEventListener('keydown', function(e) {
 
 // Initialize textarea height and button visibility
 autoResizeTextarea(messageInput);
-// updateSendButtonVisibility(messageInput);
+updateSendButtonVisibility(messageInput);
 
 // Event listener for send button
 document.querySelector('.send-button').addEventListener('click', function() {
@@ -482,103 +457,6 @@ function sendMessage() {
         messageInput.style.overflowY = 'auto';
         messageInput.setAttribute('rows', '1');
         // Hide send button
-        // updateSendButtonVisibility(messageInput);
+        updateSendButtonVisibility(messageInput);
     }
-}
-
-// Connection lost overlay for disconnect events
-function showReconnectOverlay() {
-    const overlay = document.createElement('div');
-    overlay.id = 'reconnect-overlay';
-    overlay.style.position = 'fixed';
-    overlay.style.top = '0';
-    overlay.style.left = '0';
-    overlay.style.width = '100%';
-    overlay.style.height = '100%';
-    overlay.style.backgroundColor = 'rgba(0,0,0,0.5)';
-    overlay.style.display = 'flex';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
-    overlay.style.zIndex = '1000';
-    
-    const button = document.createElement('button');
-    button.innerText = 'Reconnect';
-    button.style.padding = '1em 2em';
-    button.style.fontSize = '1.5em';
-    button.style.cursor = 'pointer';
-    button.onclick = function() {
-        location.reload();
-    };
-    
-    overlay.appendChild(button);
-    document.body.appendChild(overlay);
-}
-
-// DOM Elements
-const welcomeScreen = document.getElementById('welcome-screen');
-const chatScreen = document.getElementById('chat-screen');
-const createRoomBtn = document.getElementById('create-room-btn');
-const joinRoomBtn = document.getElementById('join-room-btn');
-const roomInput = document.getElementById('room-input');
-const roomNumber = document.getElementById('room-number');
-const messageInput = document.getElementById('message-text');
-const sendBtn = document.getElementById('send-button');
-const messages = document.getElementById('messages');
-
-// Event Listeners
-createRoomBtn.addEventListener('click', () => {
-    socket.emit('create-room');
-});
-
-joinRoomBtn.addEventListener('click', () => {
-    const roomId = roomInput.value.trim();
-    if (roomId) {
-        socket.emit('join-room', roomId);
-    }
-});
-
-// Event listeners
-document.addEventListener('visibilitychange', handleVisibilityChange);
-window.addEventListener('pageshow', handlePageShow);
-window.addEventListener('pagehide', handlePageHide);
-
-// Safari-specific event listeners
-if (isSafari) {
-    // Handle app going to background/foreground
-    window.addEventListener('focus', () => {
-        connectionState.backgrounded = false;
-        handleVisibilityChange();
-    });
-    
-    window.addEventListener('blur', () => {
-        connectionState.backgrounded = true;
-    });
-    
-    // Handle device online/offline
-    window.addEventListener('online', () => {
-        connectionState.backgrounded = false;
-        attemptReconnection(true);
-    });
-    
-    window.addEventListener('offline', () => {
-        connectionState.backgrounded = true;
-    });
-}
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
-    if (keepAliveInterval) {
-        clearInterval(keepAliveInterval);
-    }
-});
-
-// Refresh chat on mobile platforms when returning to chat
-if (/Mobi|Android/i.test(navigator.userAgent)) {
-    document.addEventListener('visibilitychange', function() {
-        if (!document.hidden) {
-            // Refresh chat for both Host and Guest
-            // This implementation reloads the page; customize if a partial refresh is desired
-            location.reload();
-        }
-    });
 }

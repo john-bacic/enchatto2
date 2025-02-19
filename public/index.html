@@ -11,27 +11,6 @@
     :root {
       --room-info-height: 0px;
     }
-
-    .connection-dot {
-        display: inline-block;
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        margin-left: 5px;
-        vertical-align: middle;
-        transition: background-color 0.3s ease;
-    }
-
-    .message-header {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-    }
-
-    .username {
-        display: inline-flex;
-        align-items: center;
-    }
   </style>
 </head>
 <body>
@@ -315,19 +294,6 @@
       usernameSpan.className = 'username';
       usernameSpan.textContent = msg.username;
       usernameSpan.style.color = msg.color;
-      
-      // Add connection dot
-      const dot = document.createElement('span');
-      dot.className = 'connection-dot';
-      dot.style.display = 'inline-block';
-      dot.style.width = '8px';
-      dot.style.height = '8px';
-      dot.style.borderRadius = '50%';
-      dot.style.marginLeft = '5px';
-      // Default to green unless explicitly marked as disconnected
-      dot.style.backgroundColor = '#2ecc71';
-      usernameSpan.appendChild(dot);
-      
       messageElement.appendChild(usernameSpan);
       
       const messageContent = document.createElement('div');
@@ -407,139 +373,7 @@
     showRpCheckbox.addEventListener('change', () => { updateMessageVisibility(); saveToggleStates(); });
     loadToggleStates();
   
-    // Track connected users
-    const connectedUsers = new Set();
-    
-    socket.on('connect', () => {
-        console.log('Connected to server');
-        if (username) {
-            connectedUsers.add(username);
-            updateConnectionDots(username, true);
-        }
-    });
-
-    socket.on('disconnect', () => {
-        console.log('Disconnected from server');
-        connectedUsers.clear();
-        updateAllConnectionDots(false);
-    });
-
-    // Handle initial room join and username assignment
-    socket.on('room-joined', (data) => {
-        username = data.username;
-        userColor = data.color;
-        isHost = data.isHost;
-        // Add self to connected users immediately
-        connectedUsers.add(username);
-        updateConnectionDots(username, true);
-    });
-
-    socket.on('connected-users', (users) => {
-        // Keep existing connections when receiving updates
-        users.forEach(user => {
-            connectedUsers.add(user);
-            updateConnectionDots(user, true);
-        });
-    });
-
-    socket.on('user-left', (data) => {
-        console.log('User left:', data);
-        connectedUsers.delete(data.username);
-        updateConnectionDots(data.username, false);
-    });
-
-    socket.on('user-joined', (data) => {
-        console.log('User joined:', data);
-        connectedUsers.add(data.username);
-        updateConnectionDots(data.username, true);
-    });
-
-    // Function to update connection dots for a user
-    function updateConnectionDots(targetUsername, isConnected) {
-        document.querySelectorAll('.message').forEach(msg => {
-            const usernameEl = msg.querySelector('.username');
-            if (usernameEl && usernameEl.textContent === targetUsername) {
-                const dot = usernameEl.querySelector('.connection-dot');
-                if (dot) {
-                    dot.style.backgroundColor = isConnected ? '#2ecc71' : '#424D4D';
-                }
-            }
-        });
-    }
-
-    // Function to update all connection dots
-    function updateAllConnectionDots(isConnected) {
-        document.querySelectorAll('.connection-dot').forEach(dot => {
-            dot.style.backgroundColor = isConnected ? '#2ecc71' : '#424D4D';
-        });
-    }
-
-    // Update createMessageElement function
-    function createMessageElement(msg, isOwn = false) {
-        const messageElement = document.createElement('div');
-        messageElement.classList.add('message');
-        if (isOwn) { messageElement.classList.add('own'); }
-        
-        const usernameSpan = document.createElement('span');
-        usernameSpan.className = 'username';
-        usernameSpan.textContent = msg.username;
-        usernameSpan.style.color = msg.color;
-        
-        // Add connection dot
-        const dot = document.createElement('span');
-        dot.className = 'connection-dot';
-        dot.style.display = 'inline-block';
-        dot.style.width = '8px';
-        dot.style.height = '8px';
-        dot.style.borderRadius = '50%';
-        dot.style.marginLeft = '5px';
-        // Default to green unless explicitly marked as disconnected
-        dot.style.backgroundColor = '#2ecc71';
-        usernameSpan.appendChild(dot);
-        
-        messageElement.appendChild(usernameSpan);
-        
-        const messageContent = document.createElement('div');
-        messageContent.className = 'message-content';
-        messageElement.appendChild(messageContent);
-        
-        const originalText = document.createElement('span');
-        originalText.className = 'text';
-        originalText.textContent = msg.message;
-        if (msg.sourceLang === 'en') {
-          originalText.classList.add('en-text');
-          originalText.style.display = showEnCheckbox.checked ? '' : 'none';
-        } else if (msg.sourceLang === 'ja') {
-          originalText.classList.add('jp-text');
-          originalText.style.display = showJpCheckbox.checked ? '' : 'none';
-        }
-        messageContent.appendChild(originalText);
-        
-        if (msg.translation && msg.targetLang) {
-          const translationText = document.createElement('span');
-          translationText.className = 'text translation-text';
-          translationText.textContent = msg.translation;
-          if (msg.targetLang === 'en') {
-            translationText.classList.add('en-text');
-            translationText.style.display = showEnCheckbox.checked ? '' : 'none';
-          } else if (msg.targetLang === 'ja') {
-            translationText.classList.add('jp-text');
-            translationText.style.display = showJpCheckbox.checked ? '' : 'none';
-          }
-          messageContent.appendChild(translationText);
-        }
-        
-        if (msg.romanji) {
-          const romanjiText = document.createElement('span');
-          romanjiText.className = 'text rp-text';
-          romanjiText.textContent = msg.romanji;
-          romanjiText.style.display = showRpCheckbox.checked ? '' : 'none';
-          messageContent.appendChild(romanjiText);
-        }
-        
-        return messageElement;
-    }
-
+    // Socket event handlers
     socket.on('username-assigned', (data) => {
       username = data.username;
       userColor = data.color;
@@ -702,8 +536,6 @@
         timeout = setTimeout(() => func.apply(this, args), wait);
       };
     }
-
-    
   
     // Listen for when the page becomes visible (debounced)
     document.addEventListener('visibilitychange', debounce(function() {
@@ -718,7 +550,5 @@
       }
     }, 500));
   </script>  
-
-
 </body>
 </html>

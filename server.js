@@ -158,7 +158,6 @@ app.get('/room/:roomId', async (req, res) => {
                 colors: new Map(),
                 hostId: null,  // Track the host's socket ID
                 hostName: hostName,  // Store the host name
-                hostUsername: null,
                 roomId: roomId
             });
         }
@@ -186,7 +185,6 @@ app.get('/api/room/:roomId', async (req, res) => {
         room = {
             hostId: null,
             hostName: null,
-            hostUsername: null,
             guestCount: 0,
             messages: [],
             users: new Map(),
@@ -373,84 +371,125 @@ io.on('connection', (socket) => {
     let username = null;
     let userColor = null;
 
-    // Handle disconnect
+    // Handle ping for keep-alive
+    socket.on('ping', () => {
+        socket.emit('pong');
+    });
+
+    // Handle disconnect with iOS optimization
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
-        if (currentRoom && username) {
+        
+        if (currentRoom) {
             const room = rooms.get(currentRoom);
-            if (room) {
-                // Notify all users in the room about the disconnection
-                io.to(currentRoom).emit('user-left', {
-                    username: username
-                });
+            if (room && room.users.has(socket.id)) {
+                const userState = storeDisconnectedUser(room, socket);
                 
-                // Remove user from room
+                // Don't immediately remove host status during grace period
+                if (room.hostId === socket.id) {
+                    setTimeout(() => {
+                        const room = rooms.get(currentRoom);
+                        if (room && room.hostId === socket.id) {
+                            room.hostId = null;
+                        }
+                    }, GRACE_PERIOD);
+                }
+                
                 room.users.delete(socket.id);
                 
-                // Clean up empty rooms
-                if (room.users.size === 0) {
-                    rooms.delete(currentRoom);
-                }
+                // Notify others
+                socket.to(currentRoom).emit('user-left', {
+                    username: userState.username,
+                    color: userState.color,
+                    temporary: true // Mark as temporary for iOS background state
+                });
             }
         }
     });
 
-    // Handle room joining
-    socket.on('join-room', async (roomId, isHost = false, requestedUsername = null, requestedColor = null) => {
-        console.log('User joining room:', roomId);
+    socket.on('join-room', async (roomId, isHost, requestedName, requestedColor) => {
+        console.log('\n=== User Joining Room ===');
+        console.log('Room ID:', roomId);
+        console.log('Is Host:', isHost);
+        console.log('Requested Name:', requestedName);
         
         // Get or create room
         let room = rooms.get(roomId);
         if (!room) {
-            room = { 
-                users: new Map(), 
-                messages: [], 
-                hostId: null,
-                hostUsername: null 
-            };
-            rooms.set(roomId, room);
+            socket.emit('error', 'Room not found');
+            return;
         }
 
-        // Set up user info
-        username = requestedUsername || (isHost ? 'Host' : `Guest ${room.users.size + 1}`);
-        userColor = isHost ? HOST_COLOR : (requestedColor || generateColor());
-        currentRoom = roomId;
-
-        // Update host info if this is the host
+        // Check for existing session
+        const existingState = restoreUser(requestedName, roomId);
+        
+        // Handle host joining/rejoining
         if (isHost) {
+            if (room.hostId && !existingState?.isHost) {
+                socket.emit('error', 'Room already has a host');
+                return;
+            }
+            username = requestedName || 'Host';
+            userColor = HOST_COLOR;
             room.hostId = socket.id;
-            room.hostUsername = username;
+        } else {
+            // Handle guest joining/rejoining
+            if (existingState) {
+                // Restore previous guest session
+                username = existingState.username;
+                userColor = existingState.color;
+            } else {
+                // New guest
+                room.guestCount = (room.guestCount || 0) + 1;
+                username = requestedName || `Guest ${room.guestCount}`;
+                userColor = requestedColor || generateColor();
+            }
         }
 
-        // Join the room
-        socket.join(roomId);
-        room.users.set(socket.id, { username, color: userColor, isHost });
+        // Leave current room if in one
+        if (currentRoom) {
+            const oldRoom = rooms.get(currentRoom);
+            if (oldRoom) {
+                // Store state before leaving
+                storeDisconnectedUser(oldRoom, socket);
+                oldRoom.users.delete(socket.id);
+                socket.to(currentRoom).emit('user-left', {
+                    username,
+                    color: userColor
+                });
+            }
+            await socket.leave(currentRoom);
+        }
 
-        // Notify all users about the new connection
-        io.to(roomId).emit('user-joined', {
-            username: username
+        // Join new room
+        await socket.join(roomId);
+        currentRoom = roomId;
+        
+        // Store user in room
+        room.users.set(socket.id, {
+            username,
+            color: userColor
         });
 
-        // Send room info back to the user
-        socket.emit('room-joined', {
-            roomId,
+        // Send user info back
+        socket.emit('username-assigned', {
             username,
             color: userColor,
-            isHost,
-            hostUsername: room.hostUsername
+            isHost
         });
 
-        // Get list of connected users, ensuring host is included if they exist
-        const connectedUsers = Array.from(room.users.values())
-            .map(u => u.username);
-        
-        // Always include host in connected users list if they exist
-        if (room.hostUsername && !connectedUsers.includes(room.hostUsername)) {
-            connectedUsers.push(room.hostUsername);
+        // Send recent messages
+        if (room.messages && room.messages.length > 0) {
+            socket.emit('recent-messages', room.messages);
         }
 
-        // Send connected users list to everyone
-        io.to(roomId).emit('connected-users', connectedUsers);
+        // Notify others
+        socket.to(roomId).emit('user-joined', {
+            username,
+            color: userColor
+        });
+
+        console.log('=== User Join Complete ===\n');
     });
 
     socket.on('set-username', (roomId, requestedUsername) => {
