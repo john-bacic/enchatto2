@@ -371,15 +371,31 @@ io.on('connection', (socket) => {
     let username = null;
     let userColor = null;
 
+    // Broadcast user connection status to room
+    function broadcastUserStatus(status) {
+        if (currentRoom && username) {
+            const room = rooms.get(currentRoom);
+            if (room) {
+                socket.to(currentRoom).emit('user-status', {
+                    username: username,
+                    connected: status
+                });
+            }
+        }
+    }
+
     // Handle ping for keep-alive
     socket.on('ping', () => {
         socket.emit('pong');
     });
 
     // Handle disconnect with iOS optimization
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
+    socket.on('disconnect', (reason) => {
+        console.log('User disconnected:', socket.id, reason);
         
+        // Broadcast disconnect status before handling disconnect
+        broadcastUserStatus(false);
+
         if (currentRoom) {
             const room = rooms.get(currentRoom);
             if (room && room.users.has(socket.id)) {
@@ -407,11 +423,11 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('join-room', async (roomId, isHost, requestedName, requestedColor) => {
+    socket.on('join-room', async (roomId, isHost = false, requestedUsername = null, requestedColor = null) => {
         console.log('\n=== User Joining Room ===');
         console.log('Room ID:', roomId);
         console.log('Is Host:', isHost);
-        console.log('Requested Name:', requestedName);
+        console.log('Requested Name:', requestedUsername);
         
         // Get or create room
         let room = rooms.get(roomId);
@@ -421,7 +437,7 @@ io.on('connection', (socket) => {
         }
 
         // Check for existing session
-        const existingState = restoreUser(requestedName, roomId);
+        const existingState = restoreUser(requestedUsername, roomId);
         
         // Handle host joining/rejoining
         if (isHost) {
@@ -429,7 +445,7 @@ io.on('connection', (socket) => {
                 socket.emit('error', 'Room already has a host');
                 return;
             }
-            username = requestedName || 'Host';
+            username = requestedUsername || 'Host';
             userColor = HOST_COLOR;
             room.hostId = socket.id;
         } else {
@@ -441,7 +457,7 @@ io.on('connection', (socket) => {
             } else {
                 // New guest
                 room.guestCount = (room.guestCount || 0) + 1;
-                username = requestedName || `Guest ${room.guestCount}`;
+                username = requestedUsername || `Guest ${room.guestCount}`;
                 userColor = requestedColor || generateColor();
             }
         }
@@ -488,6 +504,9 @@ io.on('connection', (socket) => {
             username,
             color: userColor
         });
+
+        // After successfully joining, broadcast connection status
+        broadcastUserStatus(true);
 
         console.log('=== User Join Complete ===\n');
     });

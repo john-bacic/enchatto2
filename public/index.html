@@ -324,7 +324,9 @@
       dot.style.height = '8px';
       dot.style.borderRadius = '50%';
       dot.style.marginLeft = '5px';
-      dot.style.backgroundColor = socket.connected ? '#2ecc71' : '#95a5a6';
+      // Use the stored connection status for the user, or current socket status for own messages
+      const isConnected = isOwn ? socket.connected : userConnectionStatus.get(msg.username) ?? true;
+      dot.style.backgroundColor = isConnected ? '#2ecc71' : '#95a5a6';
       usernameSpan.appendChild(dot);
       
       messageElement.appendChild(usernameSpan);
@@ -406,6 +408,23 @@
     showRpCheckbox.addEventListener('change', () => { updateMessageVisibility(); saveToggleStates(); });
     loadToggleStates();
   
+    // Track other users' connection status
+    const userConnectionStatus = new Map();
+
+    socket.on('user-status', (data) => {
+        userConnectionStatus.set(data.username, data.connected);
+        // Update connection dots for this user
+        document.querySelectorAll('.message').forEach(messageEl => {
+            const usernameEl = messageEl.querySelector('.username');
+            if (usernameEl && usernameEl.textContent === data.username) {
+                const dot = usernameEl.querySelector('.connection-dot');
+                if (dot) {
+                    dot.style.backgroundColor = data.connected ? '#2ecc71' : '#95a5a6';
+                }
+            }
+        });
+    });
+
     // Socket event handlers
     socket.on('username-assigned', (data) => {
       username = data.username;
