@@ -788,6 +788,26 @@ input:checked + .toggle span,
     margin: 8px 0;
 }
 
+.refresh-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    margin-right: 5px;
+    color: #666;
+    transition: transform 0.3s ease;
+}
+
+.refresh-button:hover {
+    transform: rotate(180deg);
+}
+
+.refresh-button svg {
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+}
+
 @media (max-width: 480px) {
     .content {
         padding: 12px;

@@ -380,7 +380,14 @@
       isHost = data.isHost; // Update host status
       const welcomeMessage = document.getElementById('welcome-message');
       if (welcomeMessage) {
-        welcomeMessage.innerHTML = `You joined as: <span style="color: ${userColor}">${username}</span>`;
+        welcomeMessage.innerHTML = `
+            <button onclick="refreshPage()" class="refresh-button" title="Refresh page">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M23 4v6h-6"></path>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                </svg>
+            </button>
+            You joined as: <span style="color: ${userColor}">${username}</span>`;
       }
       if (!isHost && username) {
         storeGuestInfo(username, userColor);
@@ -510,6 +517,10 @@
           button.classList.remove('copied');
         }, 2000);
       }).catch(err => { console.error('Failed to copy:', err); });
+    }
+  
+    function refreshPage() {
+      window.location.reload();
     }
   
     socket.on('error', (message) => {
