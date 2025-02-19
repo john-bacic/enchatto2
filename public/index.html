@@ -110,12 +110,53 @@
     // Initialize socket with reconnection settings
     const socket = io({
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
-      timeout: 10000,
-      transports: ['websocket', 'polling']
+      reconnectionDelayMax: 5000,
+      timeout: 20000
     });
+
+    // Track other users' connection status
+    const userConnectionStatus = new Map();
     
+    // Send ping every 5 seconds to maintain connection status
+    setInterval(() => {
+        if (socket.connected) {
+            socket.emit('ping-user');
+        }
+    }, 5000);
+
+    // Listen for connection status updates
+    socket.on('user-status', (data) => {
+        console.log('User status update:', data);
+        userConnectionStatus.set(data.username, data.connected);
+        // Update connection dots for this user
+        document.querySelectorAll('.message').forEach(messageEl => {
+            const usernameEl = messageEl.querySelector('.username');
+            if (usernameEl && usernameEl.textContent === data.username) {
+                const dot = usernameEl.querySelector('.connection-dot');
+                if (dot) {
+                    dot.style.backgroundColor = data.connected ? '#2ecc71' : '#95a5a6';
+                }
+            }
+        });
+    });
+
+    // Handle own connection status
+    socket.on('connect', () => {
+        console.log('Connected to server');
+        document.querySelectorAll('.message.own-message .connection-dot').forEach(dot => {
+            dot.style.backgroundColor = '#2ecc71';
+        });
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Disconnected from server');
+        document.querySelectorAll('.message.own-message .connection-dot').forEach(dot => {
+            dot.style.backgroundColor = '#95a5a6';
+        });
+    });
+
     let username = null;
     let userColor = null;
     const urlParams = new URLSearchParams(window.location.search);
@@ -309,7 +350,7 @@
     function createMessageElement(msg, isOwn = false) {
       const messageElement = document.createElement('div');
       messageElement.classList.add('message');
-      if (isOwn) { messageElement.classList.add('own'); }
+      if (isOwn) { messageElement.classList.add('own-message'); }
       
       const usernameSpan = document.createElement('span');
       usernameSpan.className = 'username';
@@ -324,6 +365,7 @@
       dot.style.height = '8px';
       dot.style.borderRadius = '50%';
       dot.style.marginLeft = '5px';
+      dot.style.transition = 'background-color 0.3s ease';
       // Use the stored connection status for the user, or current socket status for own messages
       const isConnected = isOwn ? socket.connected : userConnectionStatus.get(msg.username) ?? true;
       dot.style.backgroundColor = isConnected ? '#2ecc71' : '#95a5a6';
@@ -408,24 +450,6 @@
     showRpCheckbox.addEventListener('change', () => { updateMessageVisibility(); saveToggleStates(); });
     loadToggleStates();
   
-    // Track other users' connection status
-    const userConnectionStatus = new Map();
-
-    socket.on('user-status', (data) => {
-        userConnectionStatus.set(data.username, data.connected);
-        // Update connection dots for this user
-        document.querySelectorAll('.message').forEach(messageEl => {
-            const usernameEl = messageEl.querySelector('.username');
-            if (usernameEl && usernameEl.textContent === data.username) {
-                const dot = usernameEl.querySelector('.connection-dot');
-                if (dot) {
-                    dot.style.backgroundColor = data.connected ? '#2ecc71' : '#95a5a6';
-                }
-            }
-        });
-    });
-
-    // Socket event handlers
     socket.on('username-assigned', (data) => {
       username = data.username;
       userColor = data.color;
@@ -480,7 +504,7 @@
         messageElement.className = 'message system';
         messageElement.textContent = message.text;
       } else {
-        messageElement.className = `message ${message.own ? 'own' : ''}`;
+        messageElement.className = `message ${message.own ? 'own-message' : ''}`;
         const usernameSpan = document.createElement('span');
         usernameSpan.className = 'username';
         usernameSpan.textContent = message.username;

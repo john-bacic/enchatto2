@@ -29,11 +29,17 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Store rooms with enhanced user tracking
 const rooms = new Map();
 
+// Store user last ping times
+const userLastPing = new Map();
+
 // Store disconnected users with grace period
 const disconnectedUsers = new Map();
 
 // Grace period for reconnection (5 minutes)
 const GRACE_PERIOD = 5 * 60 * 1000;
+
+// Ping timeout duration (10 seconds)
+const PING_TIMEOUT = 10000;
 
 // Host color is always this blue
 const HOST_COLOR = '#1877f2';
@@ -104,6 +110,26 @@ setInterval(() => {
         }
     }
 }, GRACE_PERIOD);
+
+// Check for inactive users every 5 seconds
+setInterval(() => {
+    const now = Date.now();
+    for (const [roomId, room] of rooms.entries()) {
+        for (const [socketId, userData] of room.users.entries()) {
+            const lastPing = userLastPing.get(socketId);
+            if (lastPing && (now - lastPing) > PING_TIMEOUT) {
+                // User hasn't pinged in a while, consider them disconnected
+                const socket = io.sockets.sockets.get(socketId);
+                if (socket) {
+                    socket.to(roomId).emit('user-status', {
+                        username: userData.username,
+                        connected: false
+                    });
+                }
+            }
+        }
+    }
+}, 5000);
 
 // Root route - host page
 app.get('/', (req, res) => {
@@ -371,6 +397,17 @@ io.on('connection', (socket) => {
     let username = null;
     let userColor = null;
 
+    // Update last ping time when user pings
+    socket.on('ping-user', () => {
+        userLastPing.set(socket.id, Date.now());
+        if (currentRoom && username) {
+            socket.to(currentRoom).emit('user-status', {
+                username: username,
+                connected: true
+            });
+        }
+    });
+
     // Broadcast user connection status to room
     function broadcastUserStatus(status) {
         if (currentRoom && username) {
@@ -421,6 +458,7 @@ io.on('connection', (socket) => {
                 });
             }
         }
+        userLastPing.delete(socket.id);
     });
 
     socket.on('join-room', async (roomId, isHost = false, requestedUsername = null, requestedColor = null) => {
