@@ -32,6 +32,9 @@ let connectionState = {
     backgrounded: false
 };
 
+// Track user connection states
+const userStates = new Map();
+
 // Device detection
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
@@ -123,26 +126,13 @@ socket.on('connect', () => {
     connectionState.lastConnectedAt = Date.now();
     connectionState.reconnecting = false;
     reconnectAttempts = 0;
-
-    document.querySelectorAll('.connection-dot').forEach(dot => {
-        dot.style.backgroundColor = '#2ecc71';  // A nice green color
-    });
-
-    if (lastKnownRoom) {
-        console.log('Rejoining room after connect:', lastKnownRoom);
-        socket.emit('join-room', lastKnownRoom, isHost, lastKnownUsername, lastKnownColor);
-    }
-    document.querySelectorAll('.connection-dot').forEach(dot => {
-        dot.style.backgroundColor = 'green';
-    });
+    updateAllConnectionDots(true);
 });
 
 socket.on('disconnect', (reason) => {
     console.log('Socket disconnected:', reason);
     connectionState.isConnected = false;
-    document.querySelectorAll('.connection-dot').forEach(dot => {
-        dot.style.backgroundColor = '#95a5a6';  // A nice grey color
-    });
+    updateAllConnectionDots(false);
     showReconnectOverlay();
 });
 
@@ -161,74 +151,40 @@ socket.on('pong', () => {
     }
 });
 
-// Event listeners
-document.addEventListener('visibilitychange', handleVisibilityChange);
-window.addEventListener('pageshow', handlePageShow);
-window.addEventListener('pagehide', handlePageHide);
-
-// Safari-specific event listeners
-if (isSafari) {
-    // Handle app going to background/foreground
-    window.addEventListener('focus', () => {
-        connectionState.backgrounded = false;
-        handleVisibilityChange();
-    });
-    
-    window.addEventListener('blur', () => {
-        connectionState.backgrounded = true;
-    });
-    
-    // Handle device online/offline
-    window.addEventListener('online', () => {
-        connectionState.backgrounded = false;
-        attemptReconnection(true);
-    });
-    
-    window.addEventListener('offline', () => {
-        connectionState.backgrounded = true;
+// Function to update all connection dots
+function updateAllConnectionDots(connected) {
+    document.querySelectorAll('.connection-dot').forEach(dot => {
+        dot.style.backgroundColor = connected ? '#2ecc71' : '#95a5a6';
+        dot.title = connected ? 'Connected' : 'Disconnected';
     });
 }
 
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
-    if (keepAliveInterval) {
-        clearInterval(keepAliveInterval);
-    }
+// Handle user left/joined events
+socket.on('user-joined', (data) => {
+    console.log('User joined:', data);
+    userStates.set(data.username, true);
+    updateUserDots(data.username, true);
 });
 
-// Refresh chat on mobile platforms when returning to chat
-if (/Mobi|Android/i.test(navigator.userAgent)) {
-    document.addEventListener('visibilitychange', function() {
-        if (!document.hidden) {
-            // Refresh chat for both Host and Guest
-            // This implementation reloads the page; customize if a partial refresh is desired
-            location.reload();
+socket.on('user-left', (data) => {
+    console.log('User left:', data);
+    userStates.set(data.username, false);
+    updateUserDots(data.username, false);
+});
+
+// Function to update dots for a specific user
+function updateUserDots(username, isConnected) {
+    document.querySelectorAll('.message').forEach(messageEl => {
+        const usernameEl = messageEl.querySelector('.username');
+        if (usernameEl && usernameEl.textContent === username) {
+            const dot = usernameEl.querySelector('.connection-dot');
+            if (dot) {
+                dot.style.backgroundColor = isConnected ? '#2ecc71' : '#95a5a6';
+                dot.title = isConnected ? 'Connected' : 'Disconnected';
+            }
         }
     });
 }
-
-// DOM Elements
-const welcomeScreen = document.getElementById('welcome-screen');
-const chatScreen = document.getElementById('chat-screen');
-const createRoomBtn = document.getElementById('create-room-btn');
-const joinRoomBtn = document.getElementById('join-room-btn');
-const roomInput = document.getElementById('room-input');
-const roomNumber = document.getElementById('room-number');
-const messageInput = document.getElementById('message-text');
-const sendBtn = document.getElementById('send-button');
-const messages = document.getElementById('messages');
-
-// Event Listeners
-createRoomBtn.addEventListener('click', () => {
-    socket.emit('create-room');
-});
-
-joinRoomBtn.addEventListener('click', () => {
-    const roomId = roomInput.value.trim();
-    if (roomId) {
-        socket.emit('join-room', roomId);
-    }
-});
 
 // Function to create a message element with consistent structure
 function createMessageElement(data, isSystem = false) {
@@ -266,14 +222,19 @@ function createMessageElement(data, isSystem = false) {
     dot.style.height = '8px';
     dot.style.borderRadius = '50%';
     dot.style.marginLeft = '5px';
-    dot.style.backgroundColor = connectionState.isConnected ? 'green' : 'darkgrey';
+    
+    // Check if it's the user's own message or another user's message
+    const isConnected = data.username === window.username ? socket.connected : userStates.get(data.username) ?? true;
+    dot.style.backgroundColor = isConnected ? '#2ecc71' : '#95a5a6';
+    dot.title = isConnected ? 'Connected' : 'Disconnected';
+    
+    usernameSpan.appendChild(dot);
     
     const timeSpan = document.createElement('span');
     timeSpan.className = 'timestamp';
     timeSpan.textContent = new Date(timestamp).toLocaleTimeString();
     
     header.appendChild(usernameSpan);
-    header.appendChild(dot);
     header.appendChild(timeSpan);
     
     const textDiv = document.createElement('div');
@@ -551,4 +512,73 @@ function showReconnectOverlay() {
     
     overlay.appendChild(button);
     document.body.appendChild(overlay);
+}
+
+// DOM Elements
+const welcomeScreen = document.getElementById('welcome-screen');
+const chatScreen = document.getElementById('chat-screen');
+const createRoomBtn = document.getElementById('create-room-btn');
+const joinRoomBtn = document.getElementById('join-room-btn');
+const roomInput = document.getElementById('room-input');
+const roomNumber = document.getElementById('room-number');
+const messageInput = document.getElementById('message-text');
+const sendBtn = document.getElementById('send-button');
+const messages = document.getElementById('messages');
+
+// Event Listeners
+createRoomBtn.addEventListener('click', () => {
+    socket.emit('create-room');
+});
+
+joinRoomBtn.addEventListener('click', () => {
+    const roomId = roomInput.value.trim();
+    if (roomId) {
+        socket.emit('join-room', roomId);
+    }
+});
+
+// Event listeners
+document.addEventListener('visibilitychange', handleVisibilityChange);
+window.addEventListener('pageshow', handlePageShow);
+window.addEventListener('pagehide', handlePageHide);
+
+// Safari-specific event listeners
+if (isSafari) {
+    // Handle app going to background/foreground
+    window.addEventListener('focus', () => {
+        connectionState.backgrounded = false;
+        handleVisibilityChange();
+    });
+    
+    window.addEventListener('blur', () => {
+        connectionState.backgrounded = true;
+    });
+    
+    // Handle device online/offline
+    window.addEventListener('online', () => {
+        connectionState.backgrounded = false;
+        attemptReconnection(true);
+    });
+    
+    window.addEventListener('offline', () => {
+        connectionState.backgrounded = true;
+    });
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (keepAliveInterval) {
+        clearInterval(keepAliveInterval);
+    }
+});
+
+// Refresh chat on mobile platforms when returning to chat
+if (/Mobi|Android/i.test(navigator.userAgent)) {
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            // Refresh chat for both Host and Guest
+            // This implementation reloads the page; customize if a partial refresh is desired
+            location.reload();
+        }
+    });
 }

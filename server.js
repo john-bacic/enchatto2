@@ -29,17 +29,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Store rooms with enhanced user tracking
 const rooms = new Map();
 
-// Store user last ping times
-const userLastPing = new Map();
-
 // Store disconnected users with grace period
 const disconnectedUsers = new Map();
 
 // Grace period for reconnection (5 minutes)
 const GRACE_PERIOD = 5 * 60 * 1000;
-
-// Ping timeout duration (10 seconds)
-const PING_TIMEOUT = 10000;
 
 // Host color is always this blue
 const HOST_COLOR = '#1877f2';
@@ -111,26 +105,6 @@ setInterval(() => {
     }
 }, GRACE_PERIOD);
 
-// Check for inactive users every 5 seconds
-setInterval(() => {
-    const now = Date.now();
-    for (const [roomId, room] of rooms.entries()) {
-        for (const [socketId, userData] of room.users.entries()) {
-            const lastPing = userLastPing.get(socketId);
-            if (lastPing && (now - lastPing) > PING_TIMEOUT) {
-                // User hasn't pinged in a while, consider them disconnected
-                const socket = io.sockets.sockets.get(socketId);
-                if (socket) {
-                    socket.to(roomId).emit('user-status', {
-                        username: userData.username,
-                        connected: false
-                    });
-                }
-            }
-        }
-    }
-}, 5000);
-
 // Root route - host page
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -184,6 +158,7 @@ app.get('/room/:roomId', async (req, res) => {
                 colors: new Map(),
                 hostId: null,  // Track the host's socket ID
                 hostName: hostName,  // Store the host name
+                hostUsername: null,
                 roomId: roomId
             });
         }
@@ -211,6 +186,7 @@ app.get('/api/room/:roomId', async (req, res) => {
         room = {
             hostId: null,
             hostName: null,
+            hostUsername: null,
             guestCount: 0,
             messages: [],
             users: new Map(),
@@ -397,156 +373,84 @@ io.on('connection', (socket) => {
     let username = null;
     let userColor = null;
 
-    // Update last ping time when user pings
-    socket.on('ping-user', () => {
-        userLastPing.set(socket.id, Date.now());
-        if (currentRoom && username) {
-            socket.to(currentRoom).emit('user-status', {
-                username: username,
-                connected: true
-            });
-        }
-    });
-
-    // Broadcast user connection status to room
-    function broadcastUserStatus(status) {
+    // Handle disconnect
+    socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
         if (currentRoom && username) {
             const room = rooms.get(currentRoom);
             if (room) {
-                socket.to(currentRoom).emit('user-status', {
-                    username: username,
-                    connected: status
+                // Notify all users in the room about the disconnection
+                io.to(currentRoom).emit('user-left', {
+                    username: username
                 });
-            }
-        }
-    }
-
-    // Handle ping for keep-alive
-    socket.on('ping', () => {
-        socket.emit('pong');
-    });
-
-    // Handle disconnect with iOS optimization
-    socket.on('disconnect', (reason) => {
-        console.log('User disconnected:', socket.id, reason);
-        
-        // Broadcast disconnect status before handling disconnect
-        broadcastUserStatus(false);
-
-        if (currentRoom) {
-            const room = rooms.get(currentRoom);
-            if (room && room.users.has(socket.id)) {
-                const userState = storeDisconnectedUser(room, socket);
                 
-                // Don't immediately remove host status during grace period
-                if (room.hostId === socket.id) {
-                    setTimeout(() => {
-                        const room = rooms.get(currentRoom);
-                        if (room && room.hostId === socket.id) {
-                            room.hostId = null;
-                        }
-                    }, GRACE_PERIOD);
-                }
-                
+                // Remove user from room
                 room.users.delete(socket.id);
                 
-                // Notify others
-                socket.to(currentRoom).emit('user-left', {
-                    username: userState.username,
-                    color: userState.color,
-                    temporary: true // Mark as temporary for iOS background state
-                });
+                // Clean up empty rooms
+                if (room.users.size === 0) {
+                    rooms.delete(currentRoom);
+                }
             }
         }
-        userLastPing.delete(socket.id);
     });
 
+    // Handle room joining
     socket.on('join-room', async (roomId, isHost = false, requestedUsername = null, requestedColor = null) => {
-        console.log('\n=== User Joining Room ===');
-        console.log('Room ID:', roomId);
-        console.log('Is Host:', isHost);
-        console.log('Requested Name:', requestedUsername);
+        console.log('User joining room:', roomId);
         
         // Get or create room
         let room = rooms.get(roomId);
         if (!room) {
-            socket.emit('error', 'Room not found');
-            return;
+            room = { 
+                users: new Map(), 
+                messages: [], 
+                hostId: null,
+                hostUsername: null 
+            };
+            rooms.set(roomId, room);
         }
 
-        // Check for existing session
-        const existingState = restoreUser(requestedUsername, roomId);
-        
-        // Handle host joining/rejoining
-        if (isHost) {
-            if (room.hostId && !existingState?.isHost) {
-                socket.emit('error', 'Room already has a host');
-                return;
-            }
-            username = requestedUsername || 'Host';
-            userColor = HOST_COLOR;
-            room.hostId = socket.id;
-        } else {
-            // Handle guest joining/rejoining
-            if (existingState) {
-                // Restore previous guest session
-                username = existingState.username;
-                userColor = existingState.color;
-            } else {
-                // New guest
-                room.guestCount = (room.guestCount || 0) + 1;
-                username = requestedUsername || `Guest ${room.guestCount}`;
-                userColor = requestedColor || generateColor();
-            }
-        }
-
-        // Leave current room if in one
-        if (currentRoom) {
-            const oldRoom = rooms.get(currentRoom);
-            if (oldRoom) {
-                // Store state before leaving
-                storeDisconnectedUser(oldRoom, socket);
-                oldRoom.users.delete(socket.id);
-                socket.to(currentRoom).emit('user-left', {
-                    username,
-                    color: userColor
-                });
-            }
-            await socket.leave(currentRoom);
-        }
-
-        // Join new room
-        await socket.join(roomId);
+        // Set up user info
+        username = requestedUsername || (isHost ? 'Host' : `Guest ${room.users.size + 1}`);
+        userColor = isHost ? HOST_COLOR : (requestedColor || generateColor());
         currentRoom = roomId;
-        
-        // Store user in room
-        room.users.set(socket.id, {
-            username,
-            color: userColor
+
+        // Update host info if this is the host
+        if (isHost) {
+            room.hostId = socket.id;
+            room.hostUsername = username;
+        }
+
+        // Join the room
+        socket.join(roomId);
+        room.users.set(socket.id, { username, color: userColor, isHost });
+
+        // Notify all users about the new connection
+        io.to(roomId).emit('user-joined', {
+            username: username
         });
 
-        // Send user info back
-        socket.emit('username-assigned', {
+        // Send room info back to the user
+        socket.emit('room-joined', {
+            roomId,
             username,
             color: userColor,
-            isHost
+            isHost,
+            hostUsername: room.hostUsername
         });
 
-        // Send recent messages
-        if (room.messages && room.messages.length > 0) {
-            socket.emit('recent-messages', room.messages);
+        // Get list of connected users, ensuring host is included if they exist
+        const connectedUsers = Array.from(room.users.values())
+            .map(u => u.username);
+        
+        // Always include host in connected users list if they exist
+        if (room.hostUsername && !connectedUsers.includes(room.hostUsername)) {
+            connectedUsers.push(room.hostUsername);
         }
 
-        // Notify others
-        socket.to(roomId).emit('user-joined', {
-            username,
-            color: userColor
-        });
-
-        // After successfully joining, broadcast connection status
-        broadcastUserStatus(true);
-
-        console.log('=== User Join Complete ===\n');
+        // Send connected users list to everyone
+        io.to(roomId).emit('connected-users', connectedUsers);
     });
 
     socket.on('set-username', (roomId, requestedUsername) => {
