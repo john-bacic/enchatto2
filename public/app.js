@@ -124,20 +124,25 @@ socket.on('connect', () => {
     connectionState.reconnecting = false;
     reconnectAttempts = 0;
 
+    document.querySelectorAll('.connection-dot').forEach(dot => {
+        dot.style.backgroundColor = '#2ecc71';  // A nice green color
+    });
+
     if (lastKnownRoom) {
         console.log('Rejoining room after connect:', lastKnownRoom);
         socket.emit('join-room', lastKnownRoom, isHost, lastKnownUsername, lastKnownColor);
     }
+    document.querySelectorAll('.connection-dot').forEach(dot => {
+        dot.style.backgroundColor = 'green';
+    });
 });
 
 socket.on('disconnect', (reason) => {
     console.log('Socket disconnected:', reason);
     connectionState.isConnected = false;
-    
-    // Handle Safari-specific disconnects
-    if (isSafari && reason === 'transport close') {
-        attemptReconnection();
-    }
+    document.querySelectorAll('.connection-dot').forEach(dot => {
+        dot.style.backgroundColor = '#95a5a6';  // A nice grey color
+    });
     showReconnectOverlay();
 });
 
@@ -249,16 +254,26 @@ function createMessageElement(data, isSystem = false) {
     const header = document.createElement('div');
     header.className = 'message-header';
     
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'username';
-    nameSpan.style.color = color;
-    nameSpan.textContent = username;
+    const usernameSpan = document.createElement('span');
+    usernameSpan.className = 'username';
+    usernameSpan.style.color = color;
+    usernameSpan.textContent = username;
+    
+    const dot = document.createElement('span');
+    dot.className = 'connection-dot';
+    dot.style.display = 'inline-block';
+    dot.style.width = '8px';
+    dot.style.height = '8px';
+    dot.style.borderRadius = '50%';
+    dot.style.marginLeft = '5px';
+    dot.style.backgroundColor = connectionState.isConnected ? 'green' : 'darkgrey';
     
     const timeSpan = document.createElement('span');
     timeSpan.className = 'timestamp';
     timeSpan.textContent = new Date(timestamp).toLocaleTimeString();
     
-    header.appendChild(nameSpan);
+    header.appendChild(usernameSpan);
+    header.appendChild(dot);
     header.appendChild(timeSpan);
     
     const textDiv = document.createElement('div');
@@ -280,6 +295,43 @@ function createMessageElement(data, isSystem = false) {
     messageDiv.appendChild(messageContent);
     
     return messageDiv;
+}
+
+// Add connection dot to chat bubbles next to username
+function addConnectionDot(usernameElement, isConnected) {
+    // If no dot exists already, create one
+    if (!usernameElement.querySelector('.connection-dot')) {
+        let dot = document.createElement('span');
+        dot.className = 'connection-dot';
+        dot.style.display = 'inline-block';
+        dot.style.width = '8px';
+        dot.style.height = '8px';
+        dot.style.borderRadius = '50%';
+        dot.style.marginLeft = '5px';
+        dot.style.backgroundColor = isConnected ? 'green' : 'darkgrey';
+        usernameElement.appendChild(dot);
+    } else {
+        // Update existing dot's color
+        let dot = usernameElement.querySelector('.connection-dot');
+        dot.style.backgroundColor = isConnected ? 'green' : 'darkgrey';
+    }
+}
+
+function updateConnectionDots(isConnected) {
+    const usernameElems = document.querySelectorAll('.chat-bubble .username');
+    usernameElems.forEach(el => {
+        addConnectionDot(el, isConnected);
+    });
+}
+
+// Listen to websocket events (using 'ws' as the connection variable if defined)
+if (typeof ws !== 'undefined') {
+    ws.addEventListener('open', function() {
+        updateConnectionDots(true);
+    });
+    ws.addEventListener('close', function() {
+        updateConnectionDots(false);
+    });
 }
 
 // Socket event handlers
@@ -404,7 +456,7 @@ messageInput.addEventListener('touchmove', function(e) {
 // Auto-resize on input and update send button
 messageInput.addEventListener('input', function() {
     autoResizeTextarea(this);
-    updateSendButtonVisibility(this);
+    // updateSendButtonVisibility(this);
 });
 
 // Handle paste events
@@ -412,7 +464,7 @@ messageInput.addEventListener('paste', function() {
     // Use setTimeout to wait for the paste to complete
     setTimeout(() => {
         autoResizeTextarea(this);
-        updateSendButtonVisibility(this);
+        // updateSendButtonVisibility(this);
     }, 0);
 });
 
@@ -431,7 +483,7 @@ messageInput.addEventListener('keydown', function(e) {
 
 // Initialize textarea height and button visibility
 autoResizeTextarea(messageInput);
-updateSendButtonVisibility(messageInput);
+// updateSendButtonVisibility(messageInput);
 
 // Event listener for send button
 document.querySelector('.send-button').addEventListener('click', function() {
@@ -469,7 +521,7 @@ function sendMessage() {
         messageInput.style.overflowY = 'auto';
         messageInput.setAttribute('rows', '1');
         // Hide send button
-        updateSendButtonVisibility(messageInput);
+        // updateSendButtonVisibility(messageInput);
     }
 }
 

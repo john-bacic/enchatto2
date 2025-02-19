@@ -11,6 +11,27 @@
     :root {
       --room-info-height: 0px;
     }
+
+    .connection-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-left: 5px;
+        vertical-align: middle;
+        transition: background-color 0.3s ease;
+    }
+
+    .message-header {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .username {
+        display: inline-flex;
+        align-items: center;
+    }
   </style>
 </head>
 <body>
@@ -536,6 +557,8 @@
         timeout = setTimeout(() => func.apply(this, args), wait);
       };
     }
+
+    
   
     // Listen for when the page becomes visible (debounced)
     document.addEventListener('visibilitychange', debounce(function() {
@@ -550,5 +573,7 @@
       }
     }, 500));
   </script>  
+
+
 </body>
 </html>
