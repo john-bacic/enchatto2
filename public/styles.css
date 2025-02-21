@@ -501,6 +501,7 @@ input:checked + .toggle span,
     z-index: 10;
     display: flex;
     flex-direction: column;
+    padding-bottom: 32px;
 }
 
 .message-input {
