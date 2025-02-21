@@ -2,10 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Chat Room</title>
+  <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" /> -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>enChatto</title>
   <base href="/" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="/styles.css" />
   <style>
     :root {
@@ -436,12 +438,11 @@
       if (welcomeMessage) {
         welcomeMessage.innerHTML = `
             <button onclick="refreshPage()" class="refresh-button" title="Refresh page">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${userColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M23 4v6h-6"></path>
                     <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
                 </svg>
-            </button>
-            You joined as: <span style="color: ${userColor}">${username}</span>`;
+            </button><span style="color: ${userColor}">${username}</span>`;
       }
       if (!isHost && username) {
         storeGuestInfo(username, userColor);
