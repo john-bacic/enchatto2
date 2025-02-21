@@ -33,8 +33,8 @@
 
   <!-- Room Info (for Hosts) -->
   <div id="room-info" style="display: none;" class="room-info">
-    <button class="accordion-button active" onclick="toggleAccordion(this)">Share Room</button>
-    <div class="accordion-content show">
+    <button class="accordion-button" onclick="toggleAccordion(this)">Share Room</button>
+    <div class="accordion-content">
       <div id="qr-code">
         <div class="loading">Loading QR code...</div>
       </div>
@@ -193,6 +193,58 @@
       button.classList.toggle('active');
       const content = button.nextElementSibling;
       content.classList.toggle('show');
+      
+      // Save the new state
+      saveAccordionState(button.classList.contains('active'));
+      
+      // Update height
+      const roomInfo = document.querySelector('.room-info');
+      if (roomInfo) {
+        document.documentElement.style.setProperty('--room-info-height', roomInfo.offsetHeight + 'px');
+      }
+    }
+
+    // Function to load accordion state
+    function loadAccordionState(isNewRoom = false) {
+      const button = document.querySelector('.accordion-button');
+      if (!button) return; // Exit if button is not found
+      
+      const content = button.nextElementSibling;
+      if (!content) return; // Exit if content is not found
+      
+      if (isNewRoom) {
+        // For new rooms, always start open
+        button.classList.add('active');
+        content.classList.add('show');
+        saveAccordionState(true);
+      } else {
+        // For existing rooms, load the saved state
+        const isActive = localStorage.getItem('accordionState');
+        console.log('Loading accordion state:', isActive); // Debug log
+        
+        if (isActive === 'true') {
+          button.classList.add('active');
+          content.classList.add('show');
+        } else {
+          button.classList.remove('active');
+          content.classList.remove('show');
+        }
+      }
+      
+      // Update room info height
+      const roomInfo = document.querySelector('.room-info');
+      if (roomInfo) {
+        document.documentElement.style.setProperty('--room-info-height', roomInfo.offsetHeight + 'px');
+      }
+    }
+
+    // Function to save accordion state
+    function saveAccordionState(isActive) {
+      console.log('Saving accordion state:', isActive); // Debug log
+      localStorage.setItem('accordionState', isActive);
+    }
+
+    function updateRoomInfoHeight() {
       const roomInfo = document.querySelector('.room-info');
       if (roomInfo) {
         document.documentElement.style.setProperty('--room-info-height', roomInfo.offsetHeight + 'px');
@@ -220,6 +272,8 @@
       const storedName = localStorage.getItem('chatHostUsername');
       const hostName = document.getElementById('host-name').value.trim() || storedName || 'Host';
       localStorage.setItem('chatHostUsername', hostName);
+      // Set a flag for new room
+      sessionStorage.setItem('isNewRoom', 'true');
       window.location.href = `/room?host=true&hostName=${encodeURIComponent(hostName)}`;
     }
   
@@ -560,6 +614,32 @@
         }
       }
     }, 500));
+  
+    // Load accordion state when room info is displayed
+    const roomInfo = document.getElementById('room-info');
+    const accordionObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'style' && roomInfo.style.display !== 'none') {
+          // Check if this is a new room
+          const isNewRoom = sessionStorage.getItem('isNewRoom') === 'true';
+          // Clear the flag after checking
+          sessionStorage.removeItem('isNewRoom');
+          // Load state with the appropriate flag
+          setTimeout(() => loadAccordionState(isNewRoom), 0);
+        }
+      });
+    });
+    accordionObserver.observe(roomInfo, { attributes: true });
+
+    // Also load state when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+      if (roomInfo.style.display !== 'none') {
+        const isNewRoom = sessionStorage.getItem('isNewRoom') === 'true';
+        sessionStorage.removeItem('isNewRoom');
+        loadAccordionState(isNewRoom);
+      }
+    });
+
   </script>  
 </body>
 </html>
