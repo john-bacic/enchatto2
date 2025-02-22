@@ -519,7 +519,7 @@ input:checked + .toggle span,
     flex: 1;
     border: none;
     padding: 8px;
-    font-size: 16px;
+    font-size: 18px;
     background: transparent;
     color: var(--color-text);
     resize: none;
