@@ -215,7 +215,7 @@ body {
 }
 
 .accordion-button:hover {
-    background: #2d2d2d;
+    background: var(--color-bg-top);
 }
 
 .accordion-button::after {
@@ -471,23 +471,26 @@ body {
 .toggle span {
     font-size: 13px;
     font-weight: 600;
-    color: #ffffffaa;
+    color: #00000055;
     transition: color 0.2s ease;
 }
 
 input#en-toggle:checked + .toggle,
 label[for="en-toggle"]:has(input:checked) {
     background: #9685C9;
+    box-shadow: 1px 2px 2px 0 #00000044;
 }
 
 input#jp-toggle:checked + .toggle,
 label[for="jp-toggle"]:has(input:checked) {
     background: #FFA4A4;
+    box-shadow: 1px 2px 2px 0 #00000044;
 }
 
 input#rp-toggle:checked + .toggle,
 label[for="rp-toggle"]:has(input:checked) {
     background: #699AFE;
+    box-shadow: 1px 2px 2px 0 #00000044;
 }
 
 input:checked + .toggle span,
