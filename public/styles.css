@@ -168,7 +168,7 @@ body {
 
 .room-info {
     font-size: 14px;
-    color: var(--color-text-muted);
+    color: var(--color-text-white);
     background: var(--color-bg-top);
     padding: 8px 8px 1px 8px;
     margin: 8px;
@@ -184,7 +184,7 @@ body {
 
 .room-info-language {
     font-size: 14px;
-    color: var(--color-text-muted);
+    color: var(--color-text-white);
     background: var(--color-bg-top);
     /* background: #16A085; */
     padding: 8px 16px 8px 8px;
