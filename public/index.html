@@ -148,16 +148,21 @@
     const storedGuestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
   
     // Helper to store guest info and update the dropdown
-    function storeGuestInfo(name, color) {
+    function storeGuestInfo(username, color) {
       const guestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
-      guestInfo[name] = { color, lastUsed: new Date().toISOString() };
+      guestInfo[username] = { color, lastUsed: new Date().toISOString() };
       localStorage.setItem('chatGuestInfo', JSON.stringify(guestInfo));
       updateGuestSelect();
+      // Update room info language color
+      const roomInfoLanguage = document.querySelector('.room-info-language');
+      if (roomInfoLanguage) {
+        roomInfoLanguage.style.backgroundColor = color;
+      }
     }
   
-    function getGuestInfo(name) {
+    function getGuestInfo(username) {
       const guestInfo = JSON.parse(localStorage.getItem('chatGuestInfo') || '{}');
-      return guestInfo[name];
+      return guestInfo[username];
     }
   
     function updateGuestSelect() {
@@ -167,10 +172,10 @@
       const guests = Object.entries(guestInfo).sort((a, b) => new Date(b[1].lastUsed) - new Date(a[1].lastUsed));
       // Remove all options except the first
       while (select.options.length > 1) { select.remove(1); }
-      guests.forEach(([name, info]) => {
+      guests.forEach(([username, info]) => {
         const option = document.createElement('option');
-        option.value = name;
-        option.textContent = name;
+        option.value = username;
+        option.textContent = username;
         option.style.color = info.color || '#000';
         select.appendChild(option);
       });
@@ -488,6 +493,10 @@
         storeGuestInfo(username, userColor);
         const guestNameInput = document.getElementById('guest-name');
         if (guestNameInput) { guestNameInput.style.borderColor = userColor; }
+        const roomInfoLanguage = document.querySelector('.room-info-language');
+        if (roomInfoLanguage) {
+          roomInfoLanguage.style.backgroundColor = userColor;
+        }
       }
       const sendButton = document.getElementById('send-button');
       if (sendButton) { sendButton.style.background = userColor; }
@@ -697,6 +706,37 @@
 
     // Initialize placeholder on page load
     document.addEventListener('DOMContentLoaded', updatePlaceholder);
+
+    // Update room info language color on guest join and page load
+    socket.on('username-assigned', (data) => {
+      username = data.username;
+      userColor = data.color;
+      isHost = data.isHost;
+      
+      if (!isHost) {
+        storeGuestInfo(username, userColor);
+        const roomInfoLanguage = document.querySelector('.room-info-language');
+        if (roomInfoLanguage) {
+          roomInfoLanguage.style.backgroundColor = userColor;
+        }
+      }
+      
+      document.getElementById('username-display').textContent = username;
+      document.querySelector('.chat-container').style.display = 'flex';
+      document.querySelector('.welcome-screen').style.display = 'none';
+    });
+
+    // Initialize room info language color if guest
+    document.addEventListener('DOMContentLoaded', () => {
+      const storedUsername = localStorage.getItem('guestUsername');
+      const storedColor = localStorage.getItem('guestColor');
+      if (!isHost && storedUsername && storedColor) {
+        const roomInfoLanguage = document.querySelector('.room-info-language');
+        if (roomInfoLanguage) {
+          roomInfoLanguage.style.backgroundColor = storedColor;
+        }
+      }
+    });
   </script>  
 </body>
 </html>
