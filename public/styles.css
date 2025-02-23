@@ -13,7 +13,7 @@
     
     /* Text colors */
     --color-text: #e0e0e0;
-    --color-text-muted: #ffffff;
+    --color-text-white: #ffffff;
     --color-text-subtle: #636363;
     --color-message-own-text: #68B7CF;
     --color-message-other-text: #A8EBFF;
@@ -130,7 +130,7 @@ body {
     padding: 12px 24px;
     font-size: 16px;
     background: var(--color-send-button);
-    color: var(--color-text);
+    color: #000000;
     border: none;
     border-radius: 8px;
     cursor: pointer;
@@ -139,7 +139,7 @@ body {
 
 .host-button:hover,
 .guest-button:hover {
-    background: #0d6efd;
+    background: var(--color-send-button);
 }
 
 .host-button:active,
@@ -550,7 +550,7 @@ input:checked + .toggle span,
     padding: 8px;
     font-size: 18px;
     background: transparent;
-    color: var(--color-message-other-text);
+    color: var(--color-text-white);
     resize: none;
     min-height: 24px;
     line-height: 1.4;
@@ -733,9 +733,10 @@ input:checked + .toggle span,
     color: var(--color-message-other-text);
 }
 
+
 .message.own .message-content .en-text
 {
-    color: var(--color-message-own-text);
+    color: var(--color-message-own-text-lighter);
 }
 
 .message.own .message-content .jp-text
