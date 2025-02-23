@@ -23,23 +23,8 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
-// Serve static files with explicit options
-app.use(express.static(path.join(__dirname, 'public'), {
-    dotfiles: 'ignore',
-    etag: true,
-    extensions: ['html', 'htm', 'js', 'css', 'png', 'jpg', 'gif', 'ico'],
-    index: ['index.html'],
-    maxAge: '1d',
-    redirect: false,
-    setHeaders: function (res, path, stat) {
-        res.set('x-timestamp', Date.now());
-    }
-}));
-
-// Fallback route for SPA
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Store rooms with enhanced user tracking
 const rooms = new Map();
@@ -51,7 +36,12 @@ const disconnectedUsers = new Map();
 const GRACE_PERIOD = 5 * 60 * 1000;
 
 // Host color is always this blue
-const HOST_COLOR = 'host-color';
+const HOST_COLOR = '#1877f2';
+
+// Generate random room number (6 digits)
+function generateRoomNumber() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
 // Generate random color
 function generateColor() {
@@ -154,7 +144,7 @@ app.get('/room/:roomId', async (req, res) => {
                 margin: 2,
                 errorCorrectionLevel: 'H',
                 color: {
-                    dark: '#68B7CF',
+                    dark: '#1877f2',
                     light: '#ffffff'
                 }
             });
@@ -423,85 +413,83 @@ io.on('connection', (socket) => {
         console.log('Is Host:', isHost);
         console.log('Requested Name:', requestedName);
         
-        try {
-            // Get or create room
-            let room = rooms.get(roomId);
-            
-            // If room doesn't exist and user is host, create it
-            if (!room && isHost) {
-                room = {
-                    id: roomId,
-                    hostId: null,
-                    users: new Map(),
-                    messages: []
-                };
-                rooms.set(roomId, room);
-            } else if (!room) {
-                socket.emit('join-failed', 'Room not found');
+        // Get or create room
+        let room = rooms.get(roomId);
+        if (!room) {
+            socket.emit('error', 'Room not found');
+            return;
+        }
+
+        // Check for existing session
+        const existingState = restoreUser(requestedName, roomId);
+        
+        // Handle host joining/rejoining
+        if (isHost) {
+            if (room.hostId && !existingState?.isHost) {
+                socket.emit('error', 'Room already has a host');
                 return;
             }
-
-            // Check for existing session
-            const existingState = restoreUser(requestedName, roomId);
-            
-            // Handle host joining/rejoining
-            if (isHost) {
-                if (room.hostId && room.hostId !== socket.id && !existingState?.isHost) {
-                    socket.emit('join-failed', 'Room already has a host');
-                    return;
-                }
-                username = requestedName || 'Host';
-                userColor = HOST_COLOR;
-                room.hostId = socket.id;
+            username = requestedName || 'Host';
+            userColor = HOST_COLOR;
+            room.hostId = socket.id;
+        } else {
+            // Handle guest joining/rejoining
+            if (existingState) {
+                // Restore previous guest session
+                username = existingState.username;
+                userColor = existingState.color;
             } else {
-                // Handle guest joining/rejoining
-                if (existingState) {
-                    // Restore previous guest session
-                    username = existingState.username;
-                    userColor = existingState.color;
-                } else {
-                    // New guest session
-                    username = requestedName || `Guest${Math.floor(Math.random() * 1000)}`;
-                    userColor = requestedColor || generateColor();
-                }
+                // New guest
+                room.guestCount = (room.guestCount || 0) + 1;
+                username = requestedName || `Guest ${room.guestCount}`;
+                userColor = requestedColor || generateColor();
             }
-
-            // Leave current room if in one
-            if (currentRoom && currentRoom !== roomId) {
-                socket.leave(currentRoom);
-                const oldRoom = rooms.get(currentRoom);
-                if (oldRoom) {
-                    oldRoom.users.delete(socket.id);
-                    socket.to(currentRoom).emit('user-left', { username, color: userColor });
-                }
-            }
-
-            // Join new room
-            currentRoom = roomId;
-            socket.join(roomId);
-            
-            // Update room state
-            room.users.set(socket.id, { username, color: userColor, isHost });
-            
-            // Send success response
-            socket.emit('join-success', {
-                username,
-                color: userColor,
-                isHost,
-                messages: room.messages
-            });
-
-            // Notify others in room
-            socket.to(roomId).emit('user-joined', {
-                username,
-                color: userColor,
-                isHost
-            });
-
-        } catch (error) {
-            console.error('Error joining room:', error);
-            socket.emit('join-failed', 'Failed to join room. Please try again.');
         }
+
+        // Leave current room if in one
+        if (currentRoom) {
+            const oldRoom = rooms.get(currentRoom);
+            if (oldRoom) {
+                // Store state before leaving
+                storeDisconnectedUser(oldRoom, socket);
+                oldRoom.users.delete(socket.id);
+                socket.to(currentRoom).emit('user-left', {
+                    username,
+                    color: userColor
+                });
+            }
+            await socket.leave(currentRoom);
+        }
+
+        // Join new room
+        await socket.join(roomId);
+        currentRoom = roomId;
+        
+        // Store user in room
+        room.users.set(socket.id, {
+            username,
+            color: userColor
+        });
+
+        // Send user info back
+        socket.emit('username-assigned', {
+            username,
+            color: userColor,
+            isHost
+        });
+
+        // Send recent messages
+        if (room.messages && room.messages.length > 0) {
+            socket.emit('recent-messages', room.messages);
+        }
+
+        // Notify others
+        socket.to(roomId).emit('user-joined', {
+            username,
+            color: userColor
+        });
+
+        console.log('=== User Join Complete ===\n');
     });
 
     socket.on('set-username', (roomId, requestedUsername) => {
