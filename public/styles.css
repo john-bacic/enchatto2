@@ -828,7 +828,7 @@ input:checked + .toggle span,
 }
 
 .message-content .rp-text {
-    color: var(--color-message-own-text-lighter);
+    color: var(--color-message-own-text);
     font-style: italic;
     font-size: 1.2em;
     opacity: .9;
