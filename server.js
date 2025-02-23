@@ -23,8 +23,23 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static files with explicit options
+app.use(express.static(path.join(__dirname, 'public'), {
+    dotfiles: 'ignore',
+    etag: true,
+    extensions: ['html', 'htm', 'js', 'css', 'png', 'jpg', 'gif', 'ico'],
+    index: ['index.html'],
+    maxAge: '1d',
+    redirect: false,
+    setHeaders: function (res, path, stat) {
+        res.set('x-timestamp', Date.now());
+    }
+}));
+
+// Fallback route for SPA
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Store rooms with enhanced user tracking
 const rooms = new Map();
