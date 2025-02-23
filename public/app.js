@@ -459,3 +459,60 @@ function sendMessage() {
         updateSendButtonVisibility(messageInput);
     }
 }
+
+// Handle join success
+socket.on('join-success', (data) => {
+    console.log('Successfully joined room:', data);
+    connectionState.isConnected = true;
+    connectionState.lastConnectedAt = Date.now();
+    connectionState.reconnecting = false;
+    reconnectAttempts = 0;
+
+    username = data.username;
+    lastKnownUsername = username;
+    lastKnownColor = data.color;
+    isHost = data.isHost;
+    
+    // Update UI elements
+    document.getElementById('username-display').textContent = username;
+    document.querySelector('.chat-container').style.display = 'flex';
+    document.querySelector('.welcome-screen').style.display = 'none';
+    
+    // Add existing messages
+    if (data.messages && data.messages.length > 0) {
+        const chatMessages = document.querySelector('.chat-messages');
+        chatMessages.innerHTML = '';
+        data.messages.forEach(msg => {
+            const messageElement = createMessageElement(msg);
+            chatMessages.appendChild(messageElement);
+        });
+        scrollToBottom();
+    }
+    
+    setupKeepAlive();
+});
+
+// Handle join failure
+socket.on('join-failed', (error) => {
+    console.error('Failed to join room:', error);
+    connectionState.isConnected = false;
+    connectionState.reconnecting = false;
+    
+    // Show error to user
+    const errorElement = document.getElementById('error-message');
+    if (errorElement) {
+        errorElement.textContent = error;
+        errorElement.style.display = 'block';
+        setTimeout(() => {
+            errorElement.style.display = 'none';
+        }, 5000);
+    }
+    
+    // Reset room state
+    currentRoom = null;
+    username = null;
+    
+    // Show welcome screen
+    document.querySelector('.chat-container').style.display = 'none';
+    document.querySelector('.welcome-screen').style.display = 'flex';
+});

@@ -423,83 +423,85 @@ io.on('connection', (socket) => {
         console.log('Is Host:', isHost);
         console.log('Requested Name:', requestedName);
         
-        // Get or create room
-        let room = rooms.get(roomId);
-        if (!room) {
-            socket.emit('error', 'Room not found');
-            return;
-        }
-
-        // Check for existing session
-        const existingState = restoreUser(requestedName, roomId);
-        
-        // Handle host joining/rejoining
-        if (isHost) {
-            if (room.hostId && !existingState?.isHost) {
-                socket.emit('error', 'Room already has a host');
+        try {
+            // Get or create room
+            let room = rooms.get(roomId);
+            
+            // If room doesn't exist and user is host, create it
+            if (!room && isHost) {
+                room = {
+                    id: roomId,
+                    hostId: null,
+                    users: new Map(),
+                    messages: []
+                };
+                rooms.set(roomId, room);
+            } else if (!room) {
+                socket.emit('join-failed', 'Room not found');
                 return;
             }
-            username = requestedName || 'Host';
-            userColor = HOST_COLOR;
-            room.hostId = socket.id;
-        } else {
-            // Handle guest joining/rejoining
-            if (existingState) {
-                // Restore previous guest session
-                username = existingState.username;
-                userColor = existingState.color;
+
+            // Check for existing session
+            const existingState = restoreUser(requestedName, roomId);
+            
+            // Handle host joining/rejoining
+            if (isHost) {
+                if (room.hostId && room.hostId !== socket.id && !existingState?.isHost) {
+                    socket.emit('join-failed', 'Room already has a host');
+                    return;
+                }
+                username = requestedName || 'Host';
+                userColor = HOST_COLOR;
+                room.hostId = socket.id;
             } else {
-                // New guest
-                room.guestCount = (room.guestCount || 0) + 1;
-                username = requestedName || `Guest ${room.guestCount}`;
-                userColor = requestedColor || generateColor();
+                // Handle guest joining/rejoining
+                if (existingState) {
+                    // Restore previous guest session
+                    username = existingState.username;
+                    userColor = existingState.color;
+                } else {
+                    // New guest session
+                    username = requestedName || `Guest${Math.floor(Math.random() * 1000)}`;
+                    userColor = requestedColor || generateColor();
+                }
             }
-        }
 
-        // Leave current room if in one
-        if (currentRoom) {
-            const oldRoom = rooms.get(currentRoom);
-            if (oldRoom) {
-                // Store state before leaving
-                storeDisconnectedUser(oldRoom, socket);
-                oldRoom.users.delete(socket.id);
-                socket.to(currentRoom).emit('user-left', {
-                    username,
-                    color: userColor
-                });
+            // Leave current room if in one
+            if (currentRoom && currentRoom !== roomId) {
+                socket.leave(currentRoom);
+                const oldRoom = rooms.get(currentRoom);
+                if (oldRoom) {
+                    oldRoom.users.delete(socket.id);
+                    socket.to(currentRoom).emit('user-left', { username, color: userColor });
+                }
             }
-            await socket.leave(currentRoom);
+
+            // Join new room
+            currentRoom = roomId;
+            socket.join(roomId);
+            
+            // Update room state
+            room.users.set(socket.id, { username, color: userColor, isHost });
+            
+            // Send success response
+            socket.emit('join-success', {
+                username,
+                color: userColor,
+                isHost,
+                messages: room.messages
+            });
+
+            // Notify others in room
+            socket.to(roomId).emit('user-joined', {
+                username,
+                color: userColor,
+                isHost
+            });
+
+        } catch (error) {
+            console.error('Error joining room:', error);
+            socket.emit('join-failed', 'Failed to join room. Please try again.');
         }
-
-        // Join new room
-        await socket.join(roomId);
-        currentRoom = roomId;
-        
-        // Store user in room
-        room.users.set(socket.id, {
-            username,
-            color: userColor
-        });
-
-        // Send user info back
-        socket.emit('username-assigned', {
-            username,
-            color: userColor,
-            isHost
-        });
-
-        // Send recent messages
-        if (room.messages && room.messages.length > 0) {
-            socket.emit('recent-messages', room.messages);
-        }
-
-        // Notify others
-        socket.to(roomId).emit('user-joined', {
-            username,
-            color: userColor
-        });
-
-        console.log('=== User Join Complete ===\n');
     });
 
     socket.on('set-username', (roomId, requestedUsername) => {
