@@ -16,7 +16,7 @@
     --color-text-muted: #ffffff;
     --color-text-subtle: #636363;
     --color-message-own-text: #68B7CF;
-    --color-message-other-text: #ffffff;
+    --color-message-other-text: #A8EBFF;
     --color-message-own-text-lighter: #A8EBFF;
     
     /* Border colors */
@@ -433,19 +433,19 @@ body {
 }
 
 .message .en-text {
-    color: #fff;
+    /* color: #fff; */
     font-size: 1.3em;
 }
 
 .message .jp-text {
-    color: #fff;
+    /* color: #fff; */
     font-size: 1.3em;
     margin-bottom: 2px;
 }
 
 .message .rp-text {
     display: block;
-    color: #fff;
+    /* color: #fff; */
     opacity: 1;
     font-size: 1.2em;
     margin-top: 0px;
@@ -735,28 +735,28 @@ input:checked + .toggle span,
 
 .message.own .message-content .en-text
 {
-    color: var(--color-message-own-text-lighter);
+    color: var(--color-message-own-text);
 }
 
 .message.own .message-content .jp-text
 {
-    color: var(--color-message-own-text);
+    color: var(--color-message-own-text-lighter);
 }
 
 
 
 
 .message .en-text {
-    color: #fff;
+    color: var(--color-message-other-text);
 }
 
 .message .jp-text {
-    color: #fff;
+    color: var(--color-message-other-text);
     margin-bottom: 2px;
 }
 
 .message .rp-text {
-    color: #fff;
+    /* color: #fff; */
     font-size: 1.2em;
     opacity: 1;
 }
