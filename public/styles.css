@@ -17,6 +17,7 @@
     --color-text-subtle: #636363;
     --color-message-own-text: #68B7CF;
     --color-message-other-text: #ffffff;
+    --color-message-own-text-lighter: #A8EBFF;
     
     /* Border colors */
     --color-border: #ffffff1a;
@@ -26,7 +27,7 @@
     --color-message-bg: #00000044;
     --color-message-own-bg: #1d2733;
     --color-message-border: #ffffff00;
-    --color-message-own-border: #68B7CF33;
+    --color-message-own-border: #68B7CF55;
     
     /* Username colors */
     --color-username-host: #68B7CF;
@@ -148,10 +149,10 @@ body {
 
 .host-button {
     background: var(--color-send-button);
-    color: var(--color-text);
+    color: black;
     border: none;
     padding: 16px 32px;
-    border-radius: 24px;
+    border-radius: 8px;
     font-size: 18px;
     font-weight: bold;
     cursor: pointer;
@@ -445,7 +446,7 @@ body {
 .message .rp-text {
     display: block;
     color: #fff;
-    opacity: 0.6;
+    opacity: 1;
     font-size: 1.2em;
     margin-top: 0px;
     font-style: italic;
@@ -549,7 +550,7 @@ input:checked + .toggle span,
     padding: 8px;
     font-size: 18px;
     background: transparent;
-    color: var(--color-message-own-text);
+    color: var(--color-message-other-text);
     resize: none;
     min-height: 24px;
     line-height: 1.4;
@@ -673,7 +674,7 @@ input:checked + .toggle span,
     text-align: center;
     font-style: italic;
     color: #666;
-    background-color: var(--color-bg-dark);
+    background-color: #00000000;
     padding: 8px;
     margin: 8px 0;
 }
@@ -732,11 +733,18 @@ input:checked + .toggle span,
     color: var(--color-message-other-text);
 }
 
-.message.own .message-content .en-text,
-.message.own .message-content .jp-text,
-.message.own .message-content .rm-text {
+.message.own .message-content .en-text
+{
+    color: var(--color-message-own-text-lighter);
+}
+
+.message.own .message-content .jp-text
+{
     color: var(--color-message-own-text);
 }
+
+
+
 
 .message .en-text {
     color: #fff;
@@ -812,7 +820,7 @@ input:checked + .toggle span,
 }
 
 .message-content .en-text {
-    color: var(--color-message-own-text);
+    color: var(--color-message-own-text-lighter);
 }
 
 .message-content .jp-text {
@@ -820,10 +828,10 @@ input:checked + .toggle span,
 }
 
 .message-content .rp-text {
-    color: #fff;
+    color: var(--color-message-own-text-lighter);
     font-style: italic;
     font-size: 1.2em;
-    opacity: 0.5;
+    opacity: .9;
     /* border-left: 2px dotted #82A3CBcc; */
 }
 
