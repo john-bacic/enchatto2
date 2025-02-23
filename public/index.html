@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" /> -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> -->
   <title>enChatto</title>
   <base href="/" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
@@ -115,7 +115,7 @@
     <div id="messages"></div>
     <div class="message-input-container">
       <div class="message-input">
-        <textarea id="message-text" placeholder="Type your message..." autocomplete="off" rows="1"></textarea>
+        <textarea id="message-text" placeholder="Message..." autocomplete="off" rows="1"></textarea>
         <button onclick="sendMessage()" class="send-button" id="send-button">
             <svg viewBox="0 0 18 18">
                 <path fill="black" d="M9 5.5L14.5 14H3z" />
@@ -681,6 +681,22 @@
       }
     });
 
+    // Function to update placeholder based on JP toggle
+    function updatePlaceholder() {
+      const jpToggle = document.getElementById('jp-toggle');
+      const enToggle = document.getElementById('en-toggle');
+      const messageInput = document.getElementById('message-text');
+      messageInput.placeholder = (jpToggle.checked && !enToggle.checked) ? 'メッセージ...' : 'Message...';
+    }
+
+    // Add event listener for JP toggle
+    document.getElementById('jp-toggle').addEventListener('change', updatePlaceholder);
+
+    // Add event listener for EN toggle
+    document.getElementById('en-toggle').addEventListener('change', updatePlaceholder);
+
+    // Initialize placeholder on page load
+    document.addEventListener('DOMContentLoaded', updatePlaceholder);
   </script>  
 </body>
 </html>

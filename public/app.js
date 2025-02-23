@@ -312,6 +312,10 @@ document.getElementById('jp-toggle').addEventListener('change', () => {
     jpTexts.forEach(text => {
         text.style.display = showJp ? '' : 'none';
     });
+    
+    // Update placeholder text
+    const messageInput = document.getElementById('message-text');
+    messageInput.placeholder = showJp ? 'メッセージ...' : 'Message...';
 });
 
 document.getElementById('rp-toggle').addEventListener('change', () => {
@@ -321,6 +325,13 @@ document.getElementById('rp-toggle').addEventListener('change', () => {
     rpTexts.forEach(text => {
         text.style.display = showRp && text.textContent.trim() !== '' ? '' : 'none';
     });
+});
+
+// Initialize placeholder on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const jpToggle = document.getElementById('jp-toggle');
+    const messageInput = document.getElementById('message-text');
+    messageInput.placeholder = jpToggle.checked ? 'メッセージ...' : 'Message...';
 });
 
 // Function to auto-resize textarea and containers
