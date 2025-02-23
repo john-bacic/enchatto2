@@ -1,7 +1,7 @@
 :root {
     /* Primary colors */
     --color-primary: #c7c7c7;
-    --color-primary-light: #1877f233;
+    --color-primary-light: #68B7CF;
     
     /* Background colors */
     --color-bg-dark: #1e1e1e;
@@ -13,7 +13,7 @@
     
     /* Text colors */
     --color-text: #e0e0e0;
-    --color-text-muted: #ffffffb3;
+    --color-text-muted: #ffffff;
     --color-text-subtle: #636363;
     --color-message-own-text: #68B7CF;
     --color-message-other-text: #ffffff;
@@ -28,10 +28,13 @@
     --color-message-border: #ffffff00;
     --color-message-own-border: #68B7CF33;
     
+    /* Username colors */
+    --color-username-host: #68B7CF;
+    --color-username-guest: #e0e0e0;
 
     /* Send button */
-    --color-send-button: #1877f2;
-    --color-send-button-hover: #1877f2cc;
+    --color-send-button: #68B7CF;
+    --color-send-button-hover: #68B7CFcc;
 }
 
 * {
@@ -396,16 +399,33 @@ body {
     font-weight: 500;
     margin-right: 8px;
     font-size: 0.9em;
-    /* color: var(--color-primary); */
+    color: var(--color-text);
     display: block;
     margin-top: 4px;
     margin-left: 8px;
-    margin-bottom: 0px;
+}
+
+.username.host-color {
+    color: var(--color-username-host);
+}
+
+.username.guest-color {
+    color: var(--color-username-guest);
 }
 
 .message.own .username {
-    /* color: #4b96f3; */
+    color: var(--color-username-host);
 }
+
+/* Host color */
+/* .username.#68B7CF {
+    color: var(--color-message-own-text);
+} */
+
+/* Guest color - default to white */
+/* .username {
+    color: var(--color-text);
+} */
 
 .message .message-content {
     margin-top: 4px;
@@ -424,7 +444,7 @@ body {
 
 .message .rp-text {
     display: block;
-    /* color: #68B7CF; */
+    color: #fff;
     opacity: 0.6;
     font-size: 1.2em;
     margin-top: 0px;
@@ -529,7 +549,7 @@ input:checked + .toggle span,
     padding: 8px;
     font-size: 18px;
     background: transparent;
-    color: var(--color-text);
+    color: var(--color-message-own-text);
     resize: none;
     min-height: 24px;
     line-height: 1.4;
@@ -693,13 +713,13 @@ input:checked + .toggle span,
     font-weight: 500;
     margin-right: 8px;
     font-size: 0.9em;
-    color: var(--color-primary);
+    color: var(--color-text);
     display: block;
     margin-bottom: 4px;
 }
 
 .message.own .username {
-    color: #4b96f3;
+    color: var(--color-username-host);
 }
 
 .message .message-content {
@@ -728,9 +748,9 @@ input:checked + .toggle span,
 }
 
 .message .rp-text {
-    /* color: var(--color-message-own-text); */
+    color: #fff;
     font-size: 1.2em;
-    /* opacity: 1; */
+    opacity: 1;
 }
 
 /* .message .rp-text::before {
@@ -800,9 +820,10 @@ input:checked + .toggle span,
 }
 
 .message-content .rp-text {
-    /* color: var(--color-message-own-text); */
+    color: #fff;
     font-style: italic;
     font-size: 1.2em;
+    opacity: 0.5;
     /* border-left: 2px dotted #82A3CBcc; */
 }
 
@@ -822,7 +843,7 @@ input:checked + .toggle span,
 .own-message {
     margin-left: auto;
     background: var(--color-message-own);
-    color: var(--color-text);
+    color: var(--color-message-own-text);
 }
 
 .message.own {

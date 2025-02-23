@@ -6,7 +6,7 @@ const canvas = createCanvas(32, 32);
 const ctx = canvas.getContext('2d');
 
 // Draw a chat bubble
-ctx.fillStyle = '#1877f2';
+ctx.fillStyle = '#68B7CF';
 ctx.beginPath();
 ctx.moveTo(4, 4);
 ctx.lineTo(28, 4);

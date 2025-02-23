@@ -238,8 +238,7 @@ function createMessageElement(data, isSystem = false) {
     header.className = 'message-header';
     
     const nameSpan = document.createElement('span');
-    nameSpan.className = 'username';
-    nameSpan.style.color = color;
+    nameSpan.className = `username ${color}`;
     nameSpan.textContent = username;
     
     const timeSpan = document.createElement('span');

@@ -36,12 +36,7 @@ const disconnectedUsers = new Map();
 const GRACE_PERIOD = 5 * 60 * 1000;
 
 // Host color is always this blue
-const HOST_COLOR = '#1877f2';
-
-// Generate random room number (6 digits)
-function generateRoomNumber() {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-}
+const HOST_COLOR = 'host-color';
 
 // Generate random color
 function generateColor() {
@@ -144,7 +139,7 @@ app.get('/room/:roomId', async (req, res) => {
                 margin: 2,
                 errorCorrectionLevel: 'H',
                 color: {
-                    dark: '#1877f2',
+                    dark: '#68B7CF',
                     light: '#ffffff'
                 }
             });
