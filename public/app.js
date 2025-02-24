@@ -193,67 +193,83 @@ window.addEventListener('beforeunload', () => {
 // Add mobile background/foreground detection
 let wasBackgrounded = false;
 let wasDisconnected = false;
+const reconnectModal = document.getElementById('reconnect-modal');
+const refreshButton = document.getElementById('refresh-button');
+
+// Handle refresh button click
+refreshButton.addEventListener('click', () => {
+    location.reload();
+});
 
 // Handle visibility change
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') {
-    wasBackgrounded = true;
-  } else if (document.visibilityState === 'visible') {
-    if (wasBackgrounded && wasDisconnected) {
-      // If we were backgrounded and disconnected, refresh the page
-      location.reload();
+    if (document.visibilityState === 'hidden') {
+        wasBackgrounded = true;
+    } else if (document.visibilityState === 'visible') {
+        if (wasBackgrounded && wasDisconnected) {
+            // Show the reconnection modal
+            reconnectModal.classList.add('show');
+        }
+        wasBackgrounded = false;
     }
-    wasBackgrounded = false;
-  }
 });
 
 // Track socket disconnection
 socket.on('disconnect', () => {
-  wasDisconnected = true;
-  
-  // Show disconnection message
-  const disconnectMessage = {
-    type: 'system',
-    content: 'Disconnected from server. Will auto-refresh when app is reopened.',
-    timestamp: new Date().toISOString()
-  };
-  displayMessage(disconnectMessage);
+    wasDisconnected = true;
+    
+    // If we're visible and were backgrounded, show the modal
+    if (document.visibilityState === 'visible' && wasBackgrounded) {
+        reconnectModal.classList.add('show');
+    }
+    
+    // Show disconnection message
+    const disconnectMessage = {
+        type: 'system',
+        content: 'Disconnected from server. Tap "Refresh to Reconnect" to rejoin the chat.',
+        timestamp: new Date().toISOString()
+    };
+    displayMessage(disconnectMessage);
 });
 
 // Track reconnection attempts
 socket.io.on('reconnect_attempt', () => {
-  const reconnectMessage = {
-    type: 'system',
-    content: 'Attempting to reconnect...',
-    timestamp: new Date().toISOString()
-  };
-  displayMessage(reconnectMessage);
+    const reconnectMessage = {
+        type: 'system',
+        content: 'Attempting to reconnect...',
+        timestamp: new Date().toISOString()
+    };
+    displayMessage(reconnectMessage);
 });
 
 // Handle successful reconnection
 socket.io.on('reconnect', () => {
-  wasDisconnected = false;
-  const reconnectedMessage = {
-    type: 'system',
-    content: 'Reconnected to server.',
-    timestamp: new Date().toISOString()
-  };
-  displayMessage(reconnectedMessage);
+    wasDisconnected = false;
+    reconnectModal.classList.remove('show');
+    const reconnectedMessage = {
+        type: 'system',
+        content: 'Reconnected to server.',
+        timestamp: new Date().toISOString()
+    };
+    displayMessage(reconnectedMessage);
 });
 
 // Handle failed reconnection
 socket.io.on('reconnect_failed', () => {
-  const failedMessage = {
-    type: 'system',
-    content: 'Failed to reconnect. The app will refresh when reopened.',
-    timestamp: new Date().toISOString()
-  };
-  displayMessage(failedMessage);
+    // Show the modal if we're not already showing it
+    reconnectModal.classList.add('show');
+    const failedMessage = {
+        type: 'system',
+        content: 'Failed to reconnect. Please tap "Refresh to Reconnect" to try again.',
+        timestamp: new Date().toISOString()
+    };
+    displayMessage(failedMessage);
 });
 
 // Reset disconnection flag when we reconnect
 socket.on('connect', () => {
-  wasDisconnected = false;
+    wasDisconnected = false;
+    reconnectModal.classList.remove('show');
 });
 
 // DOM Elements
