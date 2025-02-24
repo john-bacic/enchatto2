@@ -499,20 +499,20 @@ body {
 
 input#en-toggle:checked + .toggle,
 label[for="en-toggle"]:has(input:checked) {
-    background: #9685C9;
-    box-shadow: 1px 2px 2px 0 #00000044;
+    background: #A18FDB;
+    box-shadow: 1px 2px 1px 0 #00000055;
 }
 
 input#jp-toggle:checked + .toggle,
 label[for="jp-toggle"]:has(input:checked) {
-    background: #FFA4A4;
-    box-shadow: 1px 2px 2px 0 #00000044;
+    background: #DB8FC9;
+    box-shadow: 1px 2px 1px 0 #00000055;
 }
 
 input#rp-toggle:checked + .toggle,
 label[for="rp-toggle"]:has(input:checked) {
-    background: #699AFE;
-    box-shadow: 1px 2px 2px 0 #00000044;
+    background: #DB8F8F;
+    box-shadow: 1px 2px 1px 0 #00000055;
 }
 
 input:checked + .toggle span,
@@ -676,6 +676,7 @@ input:checked + .toggle span,
     background-color: #00000000;
     padding: 8px;
     margin: 8px 0;
+    max-width: 100%;
 }
 
 .message.system p {
