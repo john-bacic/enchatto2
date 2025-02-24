@@ -190,6 +190,72 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
+// Add mobile background/foreground detection
+let wasBackgrounded = false;
+let wasDisconnected = false;
+
+// Handle visibility change
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    wasBackgrounded = true;
+  } else if (document.visibilityState === 'visible') {
+    if (wasBackgrounded && wasDisconnected) {
+      // If we were backgrounded and disconnected, refresh the page
+      location.reload();
+    }
+    wasBackgrounded = false;
+  }
+});
+
+// Track socket disconnection
+socket.on('disconnect', () => {
+  wasDisconnected = true;
+  
+  // Show disconnection message
+  const disconnectMessage = {
+    type: 'system',
+    content: 'Disconnected from server. Will auto-refresh when app is reopened.',
+    timestamp: new Date().toISOString()
+  };
+  displayMessage(disconnectMessage);
+});
+
+// Track reconnection attempts
+socket.io.on('reconnect_attempt', () => {
+  const reconnectMessage = {
+    type: 'system',
+    content: 'Attempting to reconnect...',
+    timestamp: new Date().toISOString()
+  };
+  displayMessage(reconnectMessage);
+});
+
+// Handle successful reconnection
+socket.io.on('reconnect', () => {
+  wasDisconnected = false;
+  const reconnectedMessage = {
+    type: 'system',
+    content: 'Reconnected to server.',
+    timestamp: new Date().toISOString()
+  };
+  displayMessage(reconnectedMessage);
+});
+
+// Handle failed reconnection
+socket.io.on('reconnect_failed', () => {
+  const failedMessage = {
+    type: 'system',
+    content: 'Failed to reconnect. The app will refresh when reopened.',
+    timestamp: new Date().toISOString()
+  };
+  displayMessage(failedMessage);
+});
+
+// Reset disconnection flag when we reconnect
+socket.on('connect', () => {
+  wasDisconnected = false;
+});
+
 // DOM Elements
 const welcomeScreen = document.getElementById('welcome-screen');
 const chatScreen = document.getElementById('chat-screen');

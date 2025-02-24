@@ -6,8 +6,11 @@ const io = require('socket.io')(http, {
         origin: "*",
         methods: ["GET", "POST"]
     },
-    pingTimeout: 60000,
-    pingInterval: 25000,
+    pingTimeout: 60000,  // Wait 60 seconds before considering connection lost
+    pingInterval: 25000, // Check connection every 25 seconds
+    reconnectionAttempts: 5,  // Try to reconnect 5 times
+    reconnectionDelay: 1000,  // Start with 1 second delay
+    reconnectionDelayMax: 5000, // Maximum 5 second delay between attempts
     transports: ['websocket', 'polling'],
     allowEIO3: true,
     connectTimeout: 45000,
