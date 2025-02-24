@@ -47,20 +47,15 @@ function generateRoomNumber() {
 function generateColor() {
     // List of pleasant, distinct colors for guests
     const colors = [
-        '#FF6B6B', // Coral Red
-        '#4ECDC4', // Turquoise
-        '#96CEB4', // Sage Green
-        '#FFEEAD', // Cream Yellow
-        '#D4A5A5', // Dusty Rose
-        '#9B59B6', // Purple
-        '#E67E22', // Orange
-        '#27AE60', // Green
-        '#F1C40F', // Yellow
-        '#E74C3C', // Red
-        '#16A085', // Teal
-        '#3F5C78', // bright blue
-        '#8E44AD', // Violet
-        '#F39C12'  // Dark Orange
+        '#DD9CEF', // 1 purple
+        '#EF9CAE', // 2 red
+        '#E8AB6E', // 3 orange
+        '#E0E042', // 4 yellow
+        '#91E042', // 5 green
+        '#6EE8AB', // 6 teal
+        '#6EE8E8', // 7 azure
+        '#9CC5EF', // 8 blue
+        '#9C9CEF', // 9 purple
     ];
     return colors[Math.floor(Math.random() * colors.length)];
 }
