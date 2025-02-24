@@ -960,3 +960,15 @@ input:checked + .toggle span,
         max-width: 85%;
     }
 }
+
+/* Add styling for pending translations */
+.pending-translation {
+  color: var(--color-text-subtle) !important;
+  font-style: italic;
+}
+
+.pending-translation::after {
+  content: " (translating...)";
+  font-size: 0.85em;
+  opacity: 0.7;
+}

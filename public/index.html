@@ -181,22 +181,6 @@
       });
     }
   
-    function selectPreviousGuest() {
-      const select = document.getElementById('previous-guests');
-      const guestNameInput = document.getElementById('guest-name');
-      const selectedName = select.value;
-      if (selectedName) {
-        guestNameInput.value = selectedName;
-        const info = getGuestInfo(selectedName);
-        if (info && info.color) {
-          guestNameInput.style.borderColor = info.color;
-        }
-      } else {
-        guestNameInput.value = '';
-        guestNameInput.style.borderColor = '';
-      }
-    }
-  
     if (storedHostName) {
       const hostNameInput = document.getElementById('host-name');
       if (hostNameInput) hostNameInput.value = storedHostName;
@@ -518,8 +502,34 @@
     });
     socket.on('chat-message', (msg) => {
       const messagesDiv = document.getElementById('messages');
-      const messageElement = createMessageElement(msg, msg.username === username);
-      messagesDiv.appendChild(messageElement);
+      
+      // Check if this is an update to a pending message
+      const pendingMessage = document.querySelector(`[data-pending-id="${msg.username}-${msg.timestamp}"]`);
+      
+      if (pendingMessage) {
+        // Update the existing message with translations
+        const messageContent = pendingMessage.querySelector('.message-content');
+        const existingTexts = messageContent.querySelectorAll('.text');
+        
+        // Update translations
+        existingTexts.forEach(textElem => {
+          if (textElem.classList.contains('translation-text') && msg.translation) {
+            textElem.textContent = msg.translation;
+            textElem.classList.remove('pending-translation');
+          } else if (textElem.classList.contains('rp-text') && msg.romanji) {
+            textElem.textContent = msg.romanji;
+            textElem.classList.remove('pending-translation');
+          }
+        });
+        
+        // Remove the pending attribute
+        pendingMessage.removeAttribute('data-pending-id');
+      } else {
+        // Create a new message element
+        const messageElement = createMessageElement(msg, msg.username === username);
+        messagesDiv.appendChild(messageElement);
+      }
+      
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     });
     socket.on('recent-messages', (messagesArr) => {
@@ -554,15 +564,49 @@
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
   
+    // Modify the sendMessage function to immediately display messages
     function sendMessage() {
       const messageInput = document.getElementById('message-text');
       const message = messageInput.value.trim();
+      
       if (message && username) {
-        socket.emit('chat-message', roomId, message);
+        // Create a timestamp for the pending message ID
+        const timestamp = new Date().toISOString();
+        
+        // Create a pending message object
+        const pendingMsg = {
+          username: username,
+          message: message,
+          sourceLang: detectLanguageSimple(message), // Simple client-side language detection
+          targetLang: detectLanguageSimple(message) === 'ja' ? 'en' : 'ja',
+          color: userColor,
+          timestamp: timestamp,
+          messageId: `${username}-${timestamp}` // Add unique message ID
+        };
+        
+        // Create and add the pending message to the chat
+        const messagesDiv = document.getElementById('messages');
+        const messageElement = createMessageElement(pendingMsg, true);
+        messageElement.setAttribute('data-message-id', pendingMsg.messageId);
+        
+        messagesDiv.appendChild(messageElement);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        
+        // Send the message to the server for actual translation
+        socket.emit('chat-message', roomId, message, pendingMsg.messageId);
+
+        // Clear the input and reset UI
         messageInput.value = '';
-        messageInput.rows = 1; // Reset the textarea to 1 row after sending
+        messageInput.rows = 1;
         sendButton.classList.remove('visible');
       }
+    }
+  
+    // Simple client-side language detection helper
+    function detectLanguageSimple(text) {
+      // Check if the text contains Japanese characters
+      const japaneseRegex = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/;
+      return japaneseRegex.test(text) ? 'ja' : 'en';
     }
   
     const messageInput = document.getElementById('message-text');
@@ -735,6 +779,43 @@
         if (roomInfoLanguage) {
           roomInfoLanguage.style.backgroundColor = storedColor;
         }
+      }
+    });
+
+    // Add handler for translation updates
+    socket.on('translation-update', (data) => {
+      const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
+      if (messageElement) {
+        // Remove existing translation elements if any
+        const existingTranslation = messageElement.querySelector('.translation-text');
+        const existingRomanji = messageElement.querySelector('.romanji-text');
+        if (existingTranslation) existingTranslation.remove();
+        if (existingRomanji) existingRomanji.remove();
+        
+        // Add new translation if available
+        if (data.translation) {
+          const translationDiv = document.createElement('div');
+          translationDiv.className = 'text translation-text';
+          // Add appropriate language class based on detected language
+          if (data.sourceLang === 'ja') {
+            translationDiv.classList.add('en-text'); // Japanese to English translation
+          } else {
+            translationDiv.classList.add('jp-text'); // English to Japanese translation
+          }
+          translationDiv.textContent = data.translation;
+          messageElement.querySelector('.message-content').appendChild(translationDiv);
+        }
+        
+        // Add new romanji if available
+        if (data.romanji) {
+          const romanjiDiv = document.createElement('div');
+          romanjiDiv.className = 'text romanji-text rp-text';
+          romanjiDiv.textContent = data.romanji;
+          messageElement.querySelector('.message-content').appendChild(romanjiDiv);
+        }
+
+        // Update visibility based on current toggle states
+        updateMessageVisibility();
       }
     });
   </script>  
