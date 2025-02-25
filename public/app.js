@@ -354,11 +354,14 @@ joinRoomBtn.addEventListener('click', () => {
 // Function to create a message element with consistent structure
 function createMessageElement(msg) {
   const messageDiv = document.createElement('div')
-  messageDiv.className = `message ${msg.username === username ? 'own' : ''}`
+  const isOwnMessage = msg.username === username;
+  messageDiv.className = `message ${isOwnMessage ? 'own' : ''}`
+  
+  // Get the user's color - for own messages use our global variable instead
+  const messageColor = isOwnMessage ? ownMessageTextColor : (msg.color || '#68B7CF');
 
-  if (msg.color) {
-    messageDiv.style.borderColor = msg.color
-  }
+  // Set border color based on user's color
+  messageDiv.style.borderColor = messageColor;
 
   // Add delete button
   const deleteButton = document.createElement('button')
@@ -373,34 +376,61 @@ function createMessageElement(msg) {
   const usernameElement = document.createElement('div')
   usernameElement.className = 'username'
   usernameElement.textContent = msg.username
-  usernameElement.style.color = msg.color || '#68B7CF'
+  
+  // Set username color
+  usernameElement.style.color = messageColor;
 
+  // Create message content with direct inline color
   const messageContent = document.createElement('div')
   messageContent.className = 'message-content'
-
-  // Create text element for original message
-  const textDiv = document.createElement('div')
-  textDiv.className = 'text message-text'
-  textDiv.textContent = msg.message
-
-  // Add translation element if it exists
-  if (msg.translation) {
-    const translationDiv = document.createElement('div')
-    translationDiv.className = 'text translation-text'
-    translationDiv.textContent = msg.translation
-    messageContent.appendChild(translationDiv)
-  }
-
-  // Add romanji element if it exists
-  if (msg.romanji) {
-    const romanjiDiv = document.createElement('div')
-    romanjiDiv.className = 'text romanji-text'
-    romanjiDiv.textContent = msg.romanji
-    messageContent.appendChild(romanjiDiv)
+  
+  // Use inline HTML with style attribute for more direct control
+  if (isOwnMessage) {
+    // For own messages, create elements with direct style attribute
+    const textContent = msg.message;
+    const translationContent = msg.translation || '';
+    const romanjiContent = msg.romanji || '';
+    
+    // Build HTML with inline styles to force color
+    let innerHtml = `<div class="text" style="color: ${messageColor} !important">${textContent}</div>`;
+    
+    if (translationContent) {
+      innerHtml += `<div class="translation-text" style="color: ${messageColor} !important">${translationContent}</div>`;
+    }
+    
+    if (romanjiContent) {
+      innerHtml += `<div class="romanji-text" style="color: ${messageColor} !important">${romanjiContent}</div>`;
+    }
+    
+    // Set the HTML directly
+    messageContent.innerHTML = innerHtml;
+    messageContent.style.color = messageColor;
+  } else {
+    // Standard approach for messages from others
+    const textDiv = document.createElement('div')
+    textDiv.className = 'text'
+    textDiv.textContent = msg.message
+    messageContent.appendChild(textDiv)
+    
+    if (msg.translation) {
+      const translationDiv = document.createElement('div')
+      translationDiv.className = 'translation-text'
+      translationDiv.textContent = msg.translation
+      messageContent.appendChild(translationDiv)
+    }
+    
+    if (msg.romanji) {
+      const romanjiDiv = document.createElement('div')
+      romanjiDiv.className = 'romanji-text'
+      romanjiDiv.textContent = msg.romanji
+      messageContent.appendChild(romanjiDiv)
+    }
+    
+    // Set color for other messages
+    messageContent.style.color = messageColor;
   }
 
   // Assemble the elements
-  messageContent.appendChild(textDiv)
   messageDiv.appendChild(deleteButton) // Add delete button first
   messageDiv.appendChild(usernameElement)
   messageDiv.appendChild(messageContent)
@@ -714,6 +744,38 @@ function detectLanguageSimple(text) {
   return japaneseRegex.test(text) ? 'ja' : 'en'
 }
 
+// Global variables to track username color
+let ownMessageTextColor = '#68B7CF'; // Default to host color
+
+// Function to set the text color of a message element and all its text children
+function setMessageColor(messageElement, color) {
+  // Set message content color
+  const messageContent = messageElement.querySelector('.message-content');
+  if (messageContent) {
+    messageContent.style.color = color;
+    
+    // Find all text elements and set their color directly
+    const textElements = messageContent.querySelectorAll('.text, .translation-text, .romanji-text, div');
+    textElements.forEach(elem => {
+      elem.style.color = color;
+    });
+  }
+}
+
+// Additional socket event to handle new messages and enforce colors
+socket.on('chat-message', function(data) {
+  console.log('Received chat message:', data);
+  
+  // Wait a short time for the message to be rendered
+  setTimeout(() => {
+    // Find own messages and force their color
+    const ownMessages = document.querySelectorAll('.message.own');
+    ownMessages.forEach(msg => {
+      setMessageColor(msg, ownMessageTextColor);
+    });
+  }, 10);
+});
+
 // Handle join success
 socket.on('join-success', (data) => {
   console.log('Successfully joined room:', data)
@@ -726,6 +788,46 @@ socket.on('join-success', (data) => {
   lastKnownUsername = username
   lastKnownColor = data.color
   isHost = data.isHost
+  
+  // Store the color to use for own messages - this is the key change!
+  ownMessageTextColor = data.color || '#68B7CF';
+  console.log('Setting own message text color to:', ownMessageTextColor);
+  
+  // Set text colors based directly on the room-info-language colors
+  const root = document.documentElement;
+  
+  // For host messages, use the host color from server.js
+  // This is the same as the --color-bg-top defined in :root
+  const hostColor = '#68B7CF'; // This is defined in server.js as HOST_COLOR
+  root.style.setProperty('--host-message-text-color', hostColor);
+  
+  // Set the base-color variable for color-mix operations
+  const userColor = isHost ? hostColor : data.color;
+  root.style.setProperty('--base-color', userColor);
+  
+  // For guest messages, use the color assigned by the server
+  if (data.color) {
+    console.log('Setting guest message text color to:', data.color);
+    root.style.setProperty('--guest-message-text-color', data.color);
+  }
+
+  // Update all existing own messages with the correct color
+  setTimeout(() => {
+    const ownMessages = document.querySelectorAll('.message.own');
+    console.log('Found', ownMessages.length, 'own messages to update');
+    ownMessages.forEach(msg => {
+      setMessageColor(msg, ownMessageTextColor);
+    });
+  }, 100);
+
+  // Update room-info-language elements to reflect colors if they exist
+  if (document.querySelector('.room-info-language')) {
+    if (isHost) {
+      document.querySelector('.room-info-language').style.backgroundColor = hostColor;
+    } else {
+      document.querySelector('.room-info-language').style.backgroundColor = data.color;
+    }
+  }
 
   // Update UI elements
   document.getElementById('username-display').textContent = username
@@ -770,6 +872,25 @@ socket.on('join-failed', (error) => {
   document.querySelector('.chat-container').style.display = 'none'
   document.querySelector('.welcome-screen').style.display = 'flex'
 })
+
+// Function to append a message to the messages container
+function appendMessage(msg) {
+  const messagesContainer = document.getElementById('messages')
+  if (!messagesContainer) return
+
+  const messageElement = createMessageElement(msg)
+  messagesContainer.appendChild(messageElement)
+  
+  // Force color for own messages after adding to DOM
+  if (msg.username === username) {
+    setMessageColor(messageElement, ownMessageTextColor);
+  }
+
+  // Scroll to the bottom if we're close to it
+  if (isScrolledToBottom) {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight
+  }
+}
 
 // Add CSS for the sending indicator
 document.head.insertAdjacentHTML(

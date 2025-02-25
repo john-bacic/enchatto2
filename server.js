@@ -515,7 +515,14 @@ io.on('connection', (socket) => {
 
     const room = rooms.get(roomId)
     if (!room) return
-
+    
+    // Determine color based on user role (host or guest)
+    const isHost = room.hostId === socket.id
+    const userColor = isHost ? HOST_COLOR : room.users.get(socket.id)?.color || generateColor()
+    
+    // Log color for debugging
+    console.log(`User ${username} is ${isHost ? 'host' : 'guest'} with color ${userColor}`)
+    
     console.log('\n=== Processing New Message ===')
     console.log('Message:', message)
     console.log('Room:', roomId)
@@ -575,25 +582,22 @@ io.on('connection', (socket) => {
 
       console.log('Final translations:', JSON.stringify(translations, null, 2))
 
-      // Add message to room history
-      const messageData = {
-        username: username,
+      // Create the message object with explicit color
+      const messageObj = {
+        username,
         message: translations.original,
+        timestamp: Date.now(),
+        color: userColor, // Make sure the color is included in the message object
+        id: messageId || generateId(),
         translation: translations.translated,
         romanji: translations.romanji,
         sourceLang: translations.sourceLang,
         targetLang: translations.targetLang,
-        color: userColor,
-        timestamp: new Date().toISOString(),
-        messageId: messageId,
       }
 
-      console.log(
-        'Emitting message data:',
-        JSON.stringify(messageData, null, 2)
-      )
+      console.log('Emitting message data:', JSON.stringify(messageObj, null, 2))
 
-      room.messages.push(messageData)
+      room.messages.push(messageObj)
 
       // Trim message history if needed
       if (room.messages.length > 100) {
@@ -601,10 +605,10 @@ io.on('connection', (socket) => {
       }
 
       // Only emit to others in room, not back to sender
-      socket.to(roomId).emit('chat-message', messageData)
+      socket.to(roomId).emit('chat-message', messageObj)
 
       // Send back to sender with a different event type to prevent duplicates
-      socket.emit('chat-message-confirmation', messageData)
+      socket.emit('chat-message-confirmation', messageObj)
 
       console.log('=== Message Processing Complete ===\n')
     } catch (error) {

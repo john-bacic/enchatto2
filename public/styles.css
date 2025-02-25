@@ -36,6 +36,10 @@
     /* Send button */
     --color-send-button: #68B7CF;
     --color-send-button-hover: #68B7CFcc;
+
+    /* Define new color variables for host and guest messages based on room-info-language background color */
+    --host-message-text-color: #68B7CF; /* This matches the HOST_COLOR in server.js */
+    --guest-message-text-color: #DD9CEF; /* Default, will be overridden in JavaScript */
 }
 
 * {
@@ -386,13 +390,48 @@ body {
     white-space: pre-line;
     background: var(--color-message-bg);
     border: 1px solid var(--color-message-border);
-    color: var(--color-text);
 }
 
+.message.own {
+    align-self: flex-end;
+    border: 1px solid var(--color-message-own-border);
+}
 
+.message .message-content {
+    margin-top: 4px;
+}
 
-.message:not(.own) {
-    border-bottom-left-radius: 4px;
+.message .username {
+    font-weight: 500;
+    margin-right: 8px;
+    font-size: 0.9em;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.message.own .username {
+    color: var(--color-username-host);
+}
+
+.message:not(.own) .username {
+    color: inherit; /* Inherit from the container's color */
+}
+
+.message .en-text,
+.message .jp-text,
+.message .rm-text {
+    flex: 1;
+    padding: 4px 8px;
+    line-height: 1.4;
+}
+
+.message .rm-text {
+    color: #FFC107;
+    font-style: italic;
+    opacity: 0.9;
+    font-size: 0.8em;
+    padding-left: 16px;
+    border-left: 2px solid rgba(255, 193, 7, 0.3);
 }
 
 .message .username {
@@ -401,68 +440,48 @@ body {
     font-size: 0.9em;
     color: var(--color-text);
     display: block;
-    margin-top: 4px;
-    margin-left: 8px;
-}
-
-.username.host-color {
-    color: var(--color-username-host);
-}
-
-.username.guest-color {
-    color: var(--color-username-guest);
+    margin-bottom: 4px;
 }
 
 .message.own .username {
     color: var(--color-username-host);
 }
 
-/* Host color */
-/* .username.#68B7CF {
-    color: var(--color-message-own-text);
-} */
-
-/* Guest color - default to white */
-/* .username {
-    color: var(--color-text);
-} */
-
 .message .message-content {
     margin-top: 4px;
 }
 
-.message .en-text {
-    /* color: #fff; */
-    font-size: 1.3em;
+
+
+.message-content .en-text,
+.message-content .jp-text,
+.message-content .rp-text,
+.message-content .rm-text {
+    color: inherit !important; /* Force inherit with !important */
+    font-size: 1.5em;
 }
 
-.message .jp-text {
-    /* color: #fff; */
-    font-size: 1.3em;
-    margin-bottom: 2px;
+/* Ensure message content itself inherits color */
+.message .message-content,
+.message.own .message-content,
+.message:not(.own) .message-content {
+    color: inherit !important; /* Force inherit with !important */
 }
 
-.message .rp-text {
-    display: block;
-    /* color: #fff; */
-    opacity: 1;
-    font-size: 1.2em;
-    margin-top: 0px;
-    font-style: italic;
+/* Override any specific text color definitions */
+.message .en-text,
+.message .jp-text,
+.message .rm-text {
+    color: inherit !important;
 }
 
-.message .translation-container {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-top: 4px;
+/* Override any specific own message color definitions */
+.message.own .en-text,
+.message.own .jp-text,
+.message.own .rm-text {
+    color: inherit !important;
 }
 
-.message .translation-container .text {
-    display: block;
-    position: relative;
-    z-index: 5;
-}
 
 .language-toggles {
     display: flex;
@@ -727,46 +746,41 @@ input:checked + .toggle span,
     margin-top: 4px;
 }
 
-.message:not(.own) .message-content .en-text,
-.message:not(.own) .message-content .jp-text,
-.message:not(.own) .message-content .rm-text {
-    color: var(--color-message-other-text);
+.message .message-content .text,
+.message .message-content .message-text,
+.message .message-content .translation-text,
+.message .message-content .romanji-text {
+    /* color: inherit !important;  */
+    color: color-mix(in srgb, var(--base-color) 70%, white 30%) !important; 
 }
 
-
-.message.own .message-content .en-text
-{
-    color: var(--color-message-own-text-lighter);
+.message-content .en-text,
+.message-content .jp-text,
+.message-content .rp-text,
+.message-content .rm-text {
+    color: color-mix(in srgb, var(--base-color) 70%, white 30%) !important; 
 }
 
-.message.own .message-content .jp-text
-{
-    color: var(--color-message-own-text-lighter);
+/* Ensure message content itself inherits color */
+.message .message-content,
+.message.own .message-content,
+.message:not(.own) .message-content {
+    color: color-mix(in srgb, var(--base-color) 70%, white 30%) !important; 
 }
 
-
-
-
-.message .en-text {
-    color: var(--color-message-other-text);
+/* Override any specific text color definitions */
+.message .en-text,
+.message .jp-text,
+.message .rm-text {
+    color: color-mix(in srgb, var(--base-color) 70%, white 30%) !important;
 }
 
-.message .jp-text {
-    color: var(--color-message-other-text);
-    margin-bottom: 2px;
+/* Override any specific own message color definitions */
+.message.own .en-text,
+.message.own .jp-text,
+.message.own .rm-text {
+    color: color-mix(in srgb, var(--base-color) 70%, white 90%) !important;
 }
-
-.message .rp-text {
-    /* color: #fff; */
-    font-size: 1.2em;
-    opacity: 1;
-}
-
-/* .message .rp-text::before {
-    content: "→";
-    margin-right: 4px;
-    opacity: 0.8;
-} */
 
 .language-rows {
     display: flex;
@@ -821,18 +835,18 @@ input:checked + .toggle span,
 }
 
 .message-content .en-text {
-    color: var(--color-message-own-text-lighter);
+    color: inherit;
 }
 
 .message-content .jp-text {
-    color: var(--color-message-own-text);
+    color: inherit;
 }
 
 .message-content .rp-text {
-    color: var(--color-message-own-text);
+    color: inherit;
     font-style: italic;
     font-size: 1.2em;
-    opacity: .9;
+    opacity: .7;
     /* border-left: 2px dotted #82A3CBcc; */
 }
 
@@ -851,16 +865,15 @@ input:checked + .toggle span,
 
 .own-message {
     margin-left: auto;
-    background: var(--color-message-own);
-    color: var(--color-message-own-text);
+    color: inherit;
 }
 
 .message.own {
-    background: #00000000;
     margin-left: auto;
     border-bottom-right-radius: 4px;
-    color: var(--color-message-own-text);
+    color: inherit;
     border: 1px dashed var(--color-message-own-border);
+    background: none;
 }
 
 .system-message {
@@ -971,4 +984,91 @@ input:checked + .toggle span,
   content: " (translating...)";
   font-size: 0.85em;
   opacity: 0.7;
+}
+
+/* Add specific styling to force color inheritance on own messages */
+.message.own,
+.message.own .message-content,
+.message.own .text,
+.message.own .message-text,
+.message.own .translation-text,
+.message.own .romanji-text,
+.message.own div {
+    color: inherit !important; /* Force inherit from inline styles */
+}
+
+/* Reset any white text color values */
+.message.own .text[style*="color: white"],
+.message.own .text[style*="color: #fff"],
+.message.own .text[style*="color: #ffffff"] {
+    color: inherit !important; /* Override any white color */
+}
+
+/* Remove all white color settings for own messages */
+.message.own .username {
+    color: var(--color-username-host);
+}
+
+.message.own .message-content {
+    color: inherit !important;
+}
+
+.message.own .text,
+.message.own .message-text,
+.message.own .translation-text,
+.message.own .romanji-text {
+    color: inherit !important;
+}
+
+/* Make sure no element is using the default color */
+.message .text,
+.message .message-text,
+.message .translation-text,
+.message .romanji-text {
+    color: inherit !important;
+}
+
+/* Remove any potential color resets */
+.message * {
+    color: inherit;
+}
+
+.message .text,
+.message .message-text,
+.message .translation-text,
+.message .romanji-text {
+  color: inherit !important;
+}
+
+.message.own .text,
+.message.own .message-text,
+.message.own .translation-text,
+.message.own .romanji-text {
+  color: inherit !important;
+}
+
+/* Reset any color overrides */
+.message * {
+  color: inherit;
+}
+
+/* No white color allowed */
+.message.own .text {
+  color: inherit !important;
+}
+
+/* Make EN and JP text lighter */
+.message .en-text,
+.message .jp-text {
+    color: color-mix(in srgb, var(--base-color) 70%, white 90%) !important;
+}
+
+.message.own .en-text,
+.message.own .jp-text {
+    color: color-mix(in srgb, var(--base-color) 70%, white 90%) !important;
+}
+
+.message-content .en-text,
+.message-content .jp-text {
+    color: color-mix(in srgb, var(--base-color) 70%, white 90%) !important;
 }

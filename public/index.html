@@ -12,6 +12,8 @@
   <style>
     :root {
       --room-info-height: 0px;
+      --host-message-text-color: #000;
+      --guest-message-text-color: #000;
     }
   </style>
 </head>
@@ -373,18 +375,28 @@
     function createMessageElement(msg, isOwn = false) {
       const messageElement = document.createElement('div');
       messageElement.classList.add('message');
-      if (isOwn) { messageElement.classList.add('own'); }
       
+      // Set up the message container
+      if (isOwn) { 
+        messageElement.classList.add('own');
+        messageElement.style.color = 'var(--host-message-text-color)';
+      } else {
+        // For guests, set the color for the entire message container
+        messageElement.style.color = msg.color; // Use the color assigned by the server
+      }
+      
+      // Create username element
       const usernameSpan = document.createElement('span');
       usernameSpan.className = 'username';
       usernameSpan.textContent = msg.username;
-      usernameSpan.style.color = msg.color;
+      usernameSpan.style.color = msg.color; // Always set username color
       messageElement.appendChild(usernameSpan);
       
+      // Create message content container
       const messageContent = document.createElement('div');
       messageContent.className = 'message-content';
-      messageElement.appendChild(messageContent);
       
+      // Create original text element
       const originalText = document.createElement('span');
       originalText.className = 'text';
       originalText.textContent = msg.message;
@@ -397,6 +409,7 @@
       }
       messageContent.appendChild(originalText);
       
+      // Create translation text if it exists
       if (msg.translation && msg.targetLang) {
         const translationText = document.createElement('span');
         translationText.className = 'text translation-text';
@@ -411,6 +424,7 @@
         messageContent.appendChild(translationText);
       }
       
+      // Create romanji text if it exists
       if (msg.romanji) {
         const romanjiText = document.createElement('span');
         romanjiText.className = 'text rp-text';
@@ -418,6 +432,9 @@
         romanjiText.style.display = showRpCheckbox.checked ? '' : 'none';
         messageContent.appendChild(romanjiText);
       }
+      
+      // Add message content to container
+      messageElement.appendChild(messageContent);
       
       return messageElement;
     }
