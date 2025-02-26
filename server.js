@@ -51,9 +51,9 @@ function generateColor() {
   // List of pleasant, distinct colors for guests
   const colors = [
     '#DD9CEF', // 1 purple
-    '#EF9CAE', // 2 red
+    '#FFA4A4', // 2 red
     '#E8AB6E', // 3 orange
-    '#E0E042', // 4 yellow
+    '#CECE21', // 4 yellow
     '#91E042', // 5 green
     '#6EE8AB', // 6 teal
     '#6EE8E8', // 7 azure
