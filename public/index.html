@@ -130,6 +130,7 @@
   <!-- Socket.IO Library -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="/translation-tester.js"></script>
+  <script src="/translation-spinner.js"></script>
   <script>
     // Initialize socket with reconnection settings
     const socket = io({
@@ -414,14 +415,13 @@
       if (msg.translation && msg.targetLang) {
         const translationText = document.createElement('span');
         translationText.className = 'text translation-text';
-        translationText.textContent = msg.translation;
+        // Add appropriate language class based on detected language
         if (msg.targetLang === 'en') {
-          translationText.classList.add('en-text');
-          translationText.style.display = showEnCheckbox.checked ? '' : 'none';
-        } else if (msg.targetLang === 'ja') {
-          translationText.classList.add('jp-text');
-          translationText.style.display = showJpCheckbox.checked ? '' : 'none';
+          translationText.classList.add('en-text'); // Japanese to English translation
+        } else {
+          translationText.classList.add('jp-text'); // English to Japanese translation
         }
+        translationText.textContent = msg.translation;
         messageContent.appendChild(translationText);
       }
       
@@ -436,6 +436,20 @@
       
       // Add message content to container
       messageElement.appendChild(messageContent);
+      
+      // Add translation spinner/loading indicator
+      const translationLoading = document.createElement('div');
+      translationLoading.className = 'translation-loading';
+      
+      const spinner = document.createElement('div');
+      spinner.className = 'spinner';
+      translationLoading.appendChild(spinner);
+      
+      const loadingText = document.createElement('span');
+      loadingText.textContent = '•••';
+      translationLoading.appendChild(loadingText);
+      
+      messageElement.appendChild(translationLoading);
       
       return messageElement;
     }
