@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', function() {
       translationLoading.appendChild(spinner);
       
       const loadingText = document.createElement('span');
-      loadingText.textContent = '•••';
+      loadingText.textContent = 'senting...';
       translationLoading.appendChild(loadingText);
       
       messageElement.appendChild(translationLoading);
