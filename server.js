@@ -615,6 +615,44 @@ io.on('connection', (socket) => {
       console.error('Error processing message:', error)
     }
   })
+
+  // Translation testing socket event
+  socket.on('test-translation-speed', async (data) => {
+    try {
+      const startTime = process.hrtime();
+      const clientStartTime = data.clientStartTime || 0;
+      
+      // Get the text to translate (use a standard test phrase if none provided)
+      const textToTranslate = data.text || "Hello, this is a test message to check the translation speed of the OpenAI API.";
+      const targetLanguage = data.targetLanguage || "Japanese";
+      
+      // Use the existing OpenAI translate function
+      const translationResult = await translateText(textToTranslate, targetLanguage === "Japanese" ? "ja" : "en");
+      
+      // Calculate elapsed time in milliseconds
+      const elapsedTime = process.hrtime(startTime);
+      const elapsedMs = (elapsedTime[0] * 1000) + (elapsedTime[1] / 1000000);
+      
+      // Send back the result
+      socket.emit('translation-test-result', {
+        success: true,
+        originalText: textToTranslate,
+        translatedText: translationResult,
+        targetLanguage: targetLanguage,
+        timeMs: elapsedMs,
+        serverTimeMs: elapsedMs,
+        totalTimeMs: clientStartTime ? Date.now() - clientStartTime : null
+      });
+    } catch (error) {
+      console.error('Translation test error:', error);
+      socket.emit('translation-test-result', {
+        success: false,
+        error: error.message || 'Unknown error during translation test',
+        timeMs: 0
+      });
+    }
+  });
+
 })
 
 // Start server

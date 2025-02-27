@@ -1072,3 +1072,125 @@ input:checked + .toggle span,
 .message-content .jp-text {
     color: color-mix(in srgb, var(--base-color) 70%, white 90%) !important;
 }
+
+/* Translation Speed Tester Styles */
+.translation-tester {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 250px;
+  background-color: rgba(0, 0, 0, 0.9);
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  z-index: 1000;
+  overflow: hidden;
+  border: 1px solid #333;
+  color: #eee;
+ 
+}
+
+.tester-header {
+  padding: 8px;
+  background-color: #333;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #444;
+}
+
+.tester-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tester-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+#run-translation-test {
+  background-color: #444;
+  color: white;
+  border: none;
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+#run-translation-test:hover {
+  background-color: #555;
+}
+
+#target-language-select {
+  font-size: 11px;
+  padding: 2px;
+  border-radius: 3px;
+  border: 1px solid #444;
+  background-color: #222;
+  color: #eee;
+}
+
+#close-translation-tester {
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 3px;
+}
+
+#close-translation-tester:hover {
+  color: white;
+}
+
+.tester-content {
+  padding: 8px;
+}
+
+.tester-status {
+  margin-bottom: 8px;
+  padding: 4px;
+  background-color: #222;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.tester-metrics {
+  margin-bottom: 8px;
+}
+
+.tester-metrics p {
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+.tester-history {
+  border-top: 1px solid #333;
+  padding-top: 8px;
+}
+
+.tester-history h4 {
+  margin: 0 0 4px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #ccc;
+}
+
+#test-history-list {
+  margin: 0;
+  padding: 0 0 0 16px;
+  font-size: 12px;
+  max-height: 100px;
+  overflow-y: auto;
+  color: #bbb;
+}
+
+#test-history-list li {
+  margin-bottom: 2px;
+}

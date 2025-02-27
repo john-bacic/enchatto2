@@ -129,6 +129,7 @@
 
   <!-- Socket.IO Library -->
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/translation-tester.js"></script>
   <script>
     // Initialize socket with reconnection settings
     const socket = io({
@@ -587,6 +588,12 @@
       const message = messageInput.value.trim();
       
       if (message && username) {
+        // Run a translation test if the tester is initialized
+        if (typeof runTranslationTest === 'function') {
+          console.log('Running translation test on send');
+          runTranslationTest();
+        }
+        
         // Create a timestamp for the pending message ID
         const timestamp = new Date().toISOString();
         
@@ -605,6 +612,7 @@
         const messagesDiv = document.getElementById('messages');
         const messageElement = createMessageElement(pendingMsg, true);
         messageElement.setAttribute('data-message-id', pendingMsg.messageId);
+        messageElement.setAttribute('data-timestamp', performance.now()); // Record message time
         
         messagesDiv.appendChild(messageElement);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -803,6 +811,16 @@
     socket.on('translation-update', (data) => {
       const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
       if (messageElement) {
+        // Record time when translation is displayed
+        const translationDisplayTime = performance.now();
+        
+        // Check if we have a message timestamp we can use for display timing
+        const messageTime = messageElement.getAttribute('data-timestamp');
+        if (messageTime && typeof window.recordTranslationDisplayTime === 'function') {
+          const displayLatency = translationDisplayTime - parseFloat(messageTime);
+          window.recordTranslationDisplayTime(displayLatency, data.messageId);
+        }
+        
         // Remove existing translation elements if any
         const existingTranslation = messageElement.querySelector('.translation-text');
         const existingRomanji = messageElement.querySelector('.romanji-text');
@@ -828,6 +846,7 @@
           const romanjiDiv = document.createElement('div');
           romanjiDiv.className = 'text romanji-text rp-text';
           romanjiDiv.textContent = data.romanji;
+          romanjiDiv.style.display = showRpCheckbox.checked ? '' : 'none';
           messageElement.querySelector('.message-content').appendChild(romanjiDiv);
         }
 
