@@ -778,11 +778,31 @@
 
     // Also load state when page loads
     document.addEventListener('DOMContentLoaded', () => {
+      // Check if this page load is due to a reconnection
+      const wasReconnected = sessionStorage.getItem('wasReconnected') === 'true';
+      if (wasReconnected) {
+        // Clear the flag
+        sessionStorage.removeItem('wasReconnected');
+        
+        // Add a reconnection message after a short delay to ensure the chat is loaded
+        setTimeout(() => {
+          const messagesDiv = document.getElementById('messages');
+          if (messagesDiv) {
+            const reconnectMsg = document.createElement('div');
+            reconnectMsg.className = 'message system';
+            reconnectMsg.textContent = 'Reconnected to chat';
+            messagesDiv.appendChild(reconnectMsg);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+          }
+        }, 1500); // Delay to ensure chat is initialized
+      }
+      
       if (roomInfo.style.display !== 'none') {
         const isNewRoom = sessionStorage.getItem('isNewRoom') === 'true';
         sessionStorage.removeItem('isNewRoom');
         loadAccordionState(isNewRoom);
       }
+      
       // Apply visibility settings to all messages
       updateMessageVisibility();
     });
@@ -924,34 +944,16 @@
       
       console.log('Reconnecting to room:', roomId);
       
-      // Reconnect to socket if needed
-      if (!socket.connected) {
-        socket.connect();
-      }
+      // Instead of manually reconnecting, perform a full page refresh
+      // This ensures the app is completely reloaded and reconnected properly
       
-      let storedName, storedColor;
-      if (isHost) {
-        storedName = localStorage.getItem('chatHostUsername');
-      } else {
-        // For guests, try to get the color from localStorage
-        const guestName = localStorage.getItem('chatGuestUsername');
-        const guestInfo = getGuestInfo(guestName);
-        storedName = guestName;
-        storedColor = guestInfo ? guestInfo.color : null;
-      }
+      // Store reconnection info in sessionStorage to show message after refresh
+      sessionStorage.setItem('wasReconnected', 'true');
       
-      // Rejoin the room and get all messages
-      socket.emit('join-room', roomId, isHost, storedName, storedColor);
-      
-      // Add a reconnection notification to the chat
-      const messagesDiv = document.getElementById('messages');
-      const reconnectMsg = document.createElement('div');
-      reconnectMsg.className = 'message system';
-      reconnectMsg.textContent = 'Reconnected to chat';
-      messagesDiv.appendChild(reconnectMsg);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      // Perform a full page refresh while preserving the room ID
+      window.location.reload();
     }
-    
+
     // Check if the Page Visibility API is supported
     if (typeof document.hidden !== 'undefined') {
       // Add event listener for visibility changes
