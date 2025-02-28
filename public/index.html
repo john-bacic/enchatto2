@@ -924,7 +924,7 @@
         
         // If the app was in the background for more than 30 seconds, refresh the connection
         // This threshold can be adjusted based on testing
-        if (timeInBackground > 30000 && roomId) {
+        if (roomId) {
           console.log('Refreshing connection after background...');
           // Prevent multiple refreshes within a short period
           if (now - lastVisibilityChange > 5000) {
@@ -975,7 +975,7 @@
       if (event.persisted || (typeof performance !== 'undefined' && performance.navigation.type === 2)) {
         console.log('Page was restored from cache');
         // If significant time passed, refresh connection
-        if (timeInBackground > 30000 && roomId) {
+        if (roomId) {
           refreshConnection();
         }
       }
