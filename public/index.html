@@ -882,6 +882,102 @@
         updateMessageVisibility();
       }
     });
+
+    // Handle mobile device visibility changes (especially iOS)
+    let lastVisibilityChange = 0;
+    let hiddenTime = 0;
+    
+    // Function to handle visibility change
+    function handleVisibilityChange() {
+      const now = Date.now();
+      
+      if (document.hidden) {
+        // Page is hidden (app went to background)
+        hiddenTime = now;
+        console.log('App went to background at:', new Date(hiddenTime).toLocaleTimeString());
+      } else {
+        // Page is visible again (app returned to foreground)
+        const visibleAgainTime = now;
+        const timeInBackground = visibleAgainTime - hiddenTime;
+        console.log('App returned to foreground at:', new Date(visibleAgainTime).toLocaleTimeString());
+        console.log('Time spent in background:', Math.round(timeInBackground / 1000), 'seconds');
+        
+        // If the app was in the background for more than 30 seconds, refresh the connection
+        // This threshold can be adjusted based on testing
+        if (timeInBackground > 30000 && roomId) {
+          console.log('Refreshing connection after background...');
+          // Prevent multiple refreshes within a short period
+          if (now - lastVisibilityChange > 5000) {
+            lastVisibilityChange = now;
+            
+            // Re-initialize the room connection
+            refreshConnection();
+          }
+        }
+      }
+    }
+    
+    // Function to refresh the connection
+    function refreshConnection() {
+      // Only attempt to reconnect if we're in a room
+      if (!roomId) return;
+      
+      console.log('Reconnecting to room:', roomId);
+      
+      // Reconnect to socket if needed
+      if (!socket.connected) {
+        socket.connect();
+      }
+      
+      let storedName, storedColor;
+      if (isHost) {
+        storedName = localStorage.getItem('chatHostUsername');
+      } else {
+        // For guests, try to get the color from localStorage
+        const guestName = localStorage.getItem('chatGuestUsername');
+        const guestInfo = getGuestInfo(guestName);
+        storedName = guestName;
+        storedColor = guestInfo ? guestInfo.color : null;
+      }
+      
+      // Rejoin the room and get all messages
+      socket.emit('join-room', roomId, isHost, storedName, storedColor);
+      
+      // Add a reconnection notification to the chat
+      const messagesDiv = document.getElementById('messages');
+      const reconnectMsg = document.createElement('div');
+      reconnectMsg.className = 'message system';
+      reconnectMsg.textContent = 'Reconnected to chat';
+      messagesDiv.appendChild(reconnectMsg);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+    
+    // Check if the Page Visibility API is supported
+    if (typeof document.hidden !== 'undefined') {
+      // Add event listener for visibility changes
+      document.addEventListener('visibilitychange', handleVisibilityChange, false);
+    }
+    
+    // Additional iOS-specific handlers for app state changes
+    window.addEventListener('pagehide', () => {
+      hiddenTime = Date.now();
+      console.log('Page hide event at:', new Date(hiddenTime).toLocaleTimeString());
+    });
+    
+    window.addEventListener('pageshow', (event) => {
+      const now = Date.now();
+      const timeInBackground = now - hiddenTime;
+      console.log('Page show event at:', new Date(now).toLocaleTimeString());
+      
+      // Check if this is a back-forward navigation or reload
+      if (event.persisted || (typeof performance !== 'undefined' && performance.navigation.type === 2)) {
+        console.log('Page was restored from cache');
+        // If significant time passed, refresh connection
+        if (timeInBackground > 30000 && roomId) {
+          refreshConnection();
+        }
+      }
+    });
   </script>  
 </body>
 </html>
