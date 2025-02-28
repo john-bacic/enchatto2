@@ -418,8 +418,10 @@
         // Add appropriate language class based on detected language
         if (msg.targetLang === 'en') {
           translationText.classList.add('en-text'); // Japanese to English translation
+          translationText.style.display = showEnCheckbox.checked ? '' : 'none';
         } else {
           translationText.classList.add('jp-text'); // English to Japanese translation
+          translationText.style.display = showJpCheckbox.checked ? '' : 'none';
         }
         translationText.textContent = msg.translation;
         messageContent.appendChild(translationText);
@@ -548,9 +550,17 @@
           if (textElem.classList.contains('translation-text') && msg.translation) {
             textElem.textContent = msg.translation;
             textElem.classList.remove('pending-translation');
+            
+            // Apply visibility based on language class
+            if (textElem.classList.contains('en-text')) {
+              textElem.style.display = showEnCheckbox.checked ? '' : 'none';
+            } else if (textElem.classList.contains('jp-text')) {
+              textElem.style.display = showJpCheckbox.checked ? '' : 'none';
+            }
           } else if (textElem.classList.contains('rp-text') && msg.romanji) {
             textElem.textContent = msg.romanji;
             textElem.classList.remove('pending-translation');
+            textElem.style.display = showRpCheckbox.checked ? '' : 'none';
           }
         });
         
@@ -563,6 +573,7 @@
       }
       
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      updateMessageVisibility();
     });
     socket.on('recent-messages', (messagesArr) => {
       const messagesDiv = document.getElementById('messages');
@@ -572,6 +583,7 @@
         messagesDiv.appendChild(messageElement);
       });
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      updateMessageVisibility();
     });
   
     function addMessage(message) {
@@ -771,6 +783,8 @@
         sessionStorage.removeItem('isNewRoom');
         loadAccordionState(isNewRoom);
       }
+      // Apply visibility settings to all messages
+      updateMessageVisibility();
     });
 
     // Function to update placeholder based on JP toggle
