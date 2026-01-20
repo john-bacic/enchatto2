@@ -59,7 +59,13 @@ function initializeTranslationTester() {
         <h4>Recent Tests</h4>
         <ul id="test-history-list"></ul>
       </div>
+      <div class="tester-version" id="tester-version" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #ccc; font-size: 11px; color: #666;">
+        <span>Version: <a href="#" id="version-link" target="_blank" style="color: #68B7CF;">loading...</a></span>
+      </div>
     `;
+    
+    // Fetch version info
+    fetchVersionInfo();
     
     // Assemble the container
     container.appendChild(header);
@@ -213,6 +219,27 @@ window.recordTranslationDisplayTime = function(displayTime, messageId) {
     updateTranslationTestUI();
   }
 };
+
+// Fetch version info from GitHub API
+async function fetchVersionInfo() {
+  try {
+    const response = await fetch('/api/version');
+    const data = await response.json();
+    const versionLink = document.getElementById('version-link');
+    if (versionLink && data.sha) {
+      versionLink.textContent = data.sha;
+      versionLink.href = `https://github.com/john-bacic/enchatto2/commit/${data.fullSha}`;
+      versionLink.title = data.message || 'View commit on GitHub';
+    }
+  } catch (error) {
+    console.error('Error fetching version:', error);
+    const versionLink = document.getElementById('version-link');
+    if (versionLink) {
+      versionLink.textContent = 'unknown';
+      versionLink.removeAttribute('href');
+    }
+  }
+}
 
 // Create a toggle button that's always visible
 function createToggleButton() {

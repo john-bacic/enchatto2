@@ -353,6 +353,25 @@ async function translateText(text, targetLang) {
   }
 }
 
+// API endpoint to get current commit from GitHub
+app.get('/api/version', async (req, res) => {
+  try {
+    const response = await fetch('https://api.github.com/repos/john-bacic/enchatto2/commits/main', {
+      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    });
+    const data = await response.json();
+    res.json({
+      sha: data.sha?.substring(0, 7) || 'unknown',
+      fullSha: data.sha || 'unknown',
+      message: data.commit?.message || '',
+      date: data.commit?.committer?.date || ''
+    });
+  } catch (error) {
+    console.error('Error fetching version:', error);
+    res.json({ sha: 'unknown', error: error.message });
+  }
+});
+
 // Test endpoint for OpenAI
 app.get('/test-openai', async (req, res) => {
   try {
